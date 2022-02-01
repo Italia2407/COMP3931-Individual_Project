@@ -9,7 +9,14 @@ set(EMBREE_ISPC_SUPPORT OFF)
 
 add_subdirectory("dependencies/embree-3.13.2")
 
-add_executable(HelloEmbree source/HelloEmbree.cpp)
+set(LIBS embree)
+set(INCLUDES "dependencies/embree-3.13.2/include")
 
-target_link_libraries(HelloEmbree embree)
-target_include_directories(HelloEmbree PUBLIC "dependencies/embree-3.13.2/include")
+add_executable(HelloEmbree source/HelloEmbree.cpp)
+add_executable(AsciiTriangles source/AsciiTriangles.cpp)
+
+target_link_libraries(HelloEmbree ${LIBS})
+target_include_directories(HelloEmbree PUBLIC ${INCLUDES})
+
+target_link_libraries(AsciiTriangles ${LIBS})
+target_include_directories(AsciiTriangles PUBLIC ${INCLUDES})
