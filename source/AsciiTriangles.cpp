@@ -21,10 +21,10 @@ int main()
 
     std::vector<char> faceCharacters = std::vector<char>();
     unsigned int* faces = (unsigned int*)rtcSetNewGeometryBuffer(tetraforceGeo, RTC_BUFFER_TYPE_INDEX, 0, RTC_FORMAT_UINT3, 3*sizeof(unsigned int), 4);
-    faceCharacters.push_back('#'); faces[ 0] = 0; faces[ 1] = 1; faces[ 2] = 2;
+    faceCharacters.push_back('*'); faces[ 0] = 0; faces[ 1] = 1; faces[ 2] = 2;
     faceCharacters.push_back(':'); faces[ 3] = 0; faces[ 4] = 2; faces[ 5] = 3;
     faceCharacters.push_back('@'); faces[ 6] = 1; faces[ 7] = 4; faces[ 8] = 2;
-    faceCharacters.push_back('#'); faces[ 9] = 2; faces[10] = 4; faces[11] = 3;
+    faceCharacters.push_back('*'); faces[ 9] = 2; faces[10] = 4; faces[11] = 3;
 
     rtcCommitGeometry(tetraforceGeo);
     rtcAttachGeometry(scene, tetraforceGeo);
