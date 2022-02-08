@@ -1,3 +1,5 @@
+#pragma once
+
 #include <embree3/rtcore.h>
 
 #include <glm/glm.hpp>
@@ -7,7 +9,8 @@
 struct MeshProperties
 {
 public:
-    MeshProperties(char AsciiFace);
+    MeshProperties(char AsciiFace) :
+        asciiFace(AsciiFace) {}
 
     char asciiFace;
 };

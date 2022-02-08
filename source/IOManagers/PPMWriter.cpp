@@ -3,7 +3,7 @@
 #include <fstream>
 #include <iostream>
 
-bool WriteToPPM(std::string fileName, int imgWidth, int imgHeight, std::vector<glm::vec3> pixels)
+bool WriteToPPM(std::string fileName, u_int32_t imgWidth, u_int32_t imgHeight, std::vector<glm::vec3> pixels)
 {
     std::ofstream outputFile(fileName);
 

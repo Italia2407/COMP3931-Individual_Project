@@ -40,4 +40,7 @@ bool MeshGeometry::LoadFromOBJ(std::string fileName)
 			m_faces.push_back(face);
 		}
 	}
+
+	file.close();
+	return true;
 }
