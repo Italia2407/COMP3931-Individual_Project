@@ -31,12 +31,12 @@ bool MeshGeometry::LoadFromOBJ(std::string fileName)
 		}
 		else if (word == "f")
 		{
-			std::string f0, f1, f2;
-			wordStream >> f0;
-			wordStream >> f1;
-			wordStream >> f2;
+			std::string fc0, fc1, fc2;
+			wordStream >> fc0; std::istringstream fs0(fc0); std::string f0; std::getline(fs0, f0, '/');
+			wordStream >> fc1; std::istringstream fs1(fc1); std::string f1; std::getline(fs1, f1, '/');
+			wordStream >> fc2; std::istringstream fs2(fc2); std::string f2; std::getline(fs2, f2, '/');
 
-			glm::uvec3 face(std::stoi(f0), std::stoi(f1), std::stoi(f2));
+			glm::uvec3 face(std::stoi(f0) - 1, std::stoi(f1) - 1, std::stoi(f2) - 1);
 			m_faces.push_back(face);
 		}
 	}
