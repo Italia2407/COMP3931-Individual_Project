@@ -3,9 +3,12 @@
 #include "IOManagers/PPMWriter.hpp"
 
 #include <iostream>
+#include <limits>
 
-RenderManager::RenderManager(RTCDevice* device, float borderL, float borderR, float borderT, float borderB) :
-    m_device(device), m_scene(nullptr), m_borderL(m_borderL), m_borderR(borderR), m_borderT(borderT), m_borderB(borderB)
+RenderManager::RenderManager(RTCDevice* device, float borderL, float borderR, float borderT, float borderB, u_int16_t maxRayDepth) :
+    m_device(device), m_scene(nullptr),
+    m_borderL(m_borderL), m_borderR(borderR), m_borderT(borderT), m_borderB(borderB), m_maxRayDepth(maxRayDepth),
+    m_meshObjects(std::vector<MeshGeometry*>()), m_sceneLights(std::vector<PointLight>())
 {
     if (m_device != nullptr)
         m_scene = rtcNewScene(*device);
@@ -38,6 +41,12 @@ void RenderManager::AttachMeshGeometry(MeshGeometry* meshGeometry, glm::vec3 pos
     m_meshObjects.push_back(meshGeometry);
 }
 
+void RenderManager::AddLight(glm::vec3 position, glm::vec3 colour)
+{
+    PointLight newLight(position, colour);
+    m_sceneLights.push_back(newLight);
+}
+
 void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, u_int32_t imgHeight)
 {
     rtcCommitScene(m_scene);
@@ -51,31 +60,88 @@ void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, 
         {
             float xpos = m_borderL + ((float)x / imgWidth) * (m_borderR - m_borderL);
 
-            RTCRayHit rayhit;
-            rayhit.ray.org_x = xpos; rayhit.ray.org_y = ypos; rayhit.ray.org_z = -1.0f;
-            rayhit.ray.dir_x = 0.0f; rayhit.ray.dir_y = 0.0f; rayhit.ray.dir_z = 1.0f;
-            rayhit.ray.tnear = 0.01f;
-            rayhit.ray.tfar = 100.0f;
-            rayhit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
+            u_int16_t rayDepth = 0;   // Ray Depth Initialised to 0
+            glm::vec3 pixelColour = CastRay(glm::vec3(xpos, ypos, -1.0f), glm::vec3(0.0f, 0.0f, 1.0f), rayDepth);
 
-            RTCIntersectContext context;
-            rtcInitIntersectContext(&context);
-            rtcIntersect1(m_scene, &context, &rayhit);
-
-            if (rayhit.hit.geomID != RTC_INVALID_GEOMETRY_ID)
-            {
-                std::cout << getMeshGeometryProperties(rayhit.hit.geomID).asciiFace;
-                pixels.push_back(glm::vec3(1.0f, 1.0f, 1.0f));
-            }
-            else
-            {
-                std::cout << ',';
-                pixels.push_back(glm::vec3(0.0f, 0.0f, 0.0f));
-            }
+            pixels.push_back(pixelColour);
         }
-
-        std::cout << std::endl;
     }
 
     WriteToPPM(outputFileName, imgWidth, imgHeight, pixels);
+}
+
+glm::vec3 RenderManager::CastRay(glm::vec3 origin, glm::vec3 direction, u_int16_t& rayDepth)
+{
+    RTCRayHit rayhit;
+
+    rayhit.ray.org_x = origin.x; rayhit.ray.org_y = origin.y; rayhit.ray.org_z = origin.z;
+    rayhit.ray.dir_x = direction.x; rayhit.ray.dir_y = direction.y; rayhit.ray.dir_z = direction.z;
+    rayhit.ray.tnear = 0.0f;
+    rayhit.ray.tfar = std::numeric_limits<float>::infinity();
+    rayhit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
+
+    RTCIntersectContext context;
+    rtcInitIntersectContext(&context);
+    rtcIntersect1(m_scene, &context, &rayhit);
+
+    if (rayhit.hit.geomID != RTC_INVALID_GEOMETRY_ID)
+    {
+        rayDepth++;
+
+        glm::vec3 hitPosition;
+        {
+            hitPosition.x = rayhit.ray.org_x + rayhit.ray.dir_x * rayhit.ray.tfar;
+            hitPosition.y = rayhit.ray.org_y + rayhit.ray.dir_y * rayhit.ray.tfar;
+            hitPosition.z = rayhit.ray.org_z + rayhit.ray.dir_z * rayhit.ray.tfar;
+        }
+        glm::vec3 surfaceNormal;
+        {
+            surfaceNormal.x = rayhit.hit.Ng_x;
+            surfaceNormal.y = rayhit.hit.Ng_y;
+            surfaceNormal.z = rayhit.hit.Ng_z;
+        }
+        glm::vec3 pointColour = getMeshGeometryProperties(rayhit.hit.geomID).surfaceColour;
+
+        glm::vec3 returnColour = CastShadowRays(hitPosition, surfaceNormal, pointColour);
+
+        if (rayDepth < m_maxRayDepth)
+        {
+
+        }
+
+        return returnColour;
+    }
+    else
+        return glm::vec3(0.0f, 0.0f, 0.0f);
+}
+
+glm::vec3 RenderManager::CastShadowRays(glm::vec3 origin, glm::vec3 normal, glm::vec3 pointColour)
+{
+    glm::vec3 resultLightColour = glm::vec3(0.0f, 0.0f, 0.0f);
+
+    for (int i = 0; i < m_sceneLights.size(); i++)
+    {
+        glm::vec3 lightDirection = m_sceneLights[i].position - origin;
+
+        if (glm::dot(lightDirection, normal) <= 0.0f)
+            continue;
+
+        RTCRay shadowray;
+        
+        shadowray.org_x = origin.x; shadowray.org_y = origin.y; shadowray.org_z = origin.z;
+        shadowray.dir_x = lightDirection.x; shadowray.dir_y = lightDirection.y; shadowray.dir_z = lightDirection.z;
+        shadowray.tnear = 0.0f;
+        shadowray.tfar = 1.0f;
+
+        if (shadowray.tfar >= 1.0f)
+        {
+            resultLightColour += m_sceneLights[i].colour;
+        }
+    }
+
+    pointColour.r *= resultLightColour.r;
+    pointColour.g *= resultLightColour.g;
+    pointColour.b *= resultLightColour.b;
+
+    return pointColour;
 }
