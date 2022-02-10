@@ -13,11 +13,18 @@ add_subdirectory("dependencies/embree-3.13.2")
 set(LIBS embree)
 set(INCLUDES "dependencies/embree-3.13.2/include")
 
+set(HEADERS source/IOManagers/MeshGeometry.hpp source/IOManagers/PPMWriter.hpp source/PointLight.hpp source/RenderManager.hpp)
+set(SOURCES source/IOManagers/MeshGeometry.cpp source/IOManagers/PPMWriter.cpp source/PointLight.cpp source/RenderManager.cpp)
+
 add_executable(HelloEmbree source/HelloEmbree.cpp)
-add_executable(AsciiTriangles source/AsciiTriangles.cpp source/RenderManager.cpp source/IOManagers/MeshGeometry.cpp source/IOManagers/PPMWriter.cpp)
+add_executable(AsciiTriangles source/AsciiTriangles.cpp ${HEADERS} ${SOURCES})
+add_executable(MugScene source/MugScene.cpp ${HEADERS} ${SOURCES})
 
 target_link_libraries(HelloEmbree ${LIBS})
 target_include_directories(HelloEmbree PUBLIC ${INCLUDES})
 
 target_link_libraries(AsciiTriangles ${LIBS})
 target_include_directories(AsciiTriangles PUBLIC ${INCLUDES})
+
+target_link_libraries(MugScene ${LIBS})
+target_include_directories(MugScene PUBLIC ${INCLUDES})

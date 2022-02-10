@@ -10,9 +10,9 @@
 int main()
 {
     RTCDevice device = rtcNewDevice(NULL);
-    RenderManager renderer(&device, -4.0f, 4.0f, -4.0f, 4.0f);
+    RenderManager renderer(&device, -4.0f, 4.0f, -4.0f, 4.0f, 8);
 
-    MeshProperties shader = MeshProperties('@');
+    MeshProperties shader = MeshProperties(glm::vec3(1.0f, 1.0f, 1.0f));
     MeshGeometry* TriForce = new MeshGeometry(MeshProperties(shader));
     TriForce->LoadFromOBJ("../assets/TriForce.obj");
 

@@ -9,10 +9,10 @@
 struct MeshProperties
 {
 public:
-    MeshProperties(char AsciiFace) :
-        asciiFace(AsciiFace) {}
+    MeshProperties(glm::vec3 surfaceColour) :
+        surfaceColour(surfaceColour) {}
 
-    char asciiFace;
+    glm::vec3 surfaceColour;
 };
 
 class MeshGeometry
