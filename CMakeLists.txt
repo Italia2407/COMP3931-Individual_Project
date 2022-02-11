@@ -13,8 +13,8 @@ add_subdirectory("dependencies/embree-3.13.2")
 set(LIBS embree)
 set(INCLUDES "dependencies/embree-3.13.2/include")
 
-set(HEADERS source/IOManagers/MeshGeometry.hpp source/IOManagers/PPMWriter.hpp source/PointLight.hpp source/RenderManager.hpp)
-set(SOURCES source/IOManagers/MeshGeometry.cpp source/IOManagers/PPMWriter.cpp source/PointLight.cpp source/RenderManager.cpp)
+set(HEADERS source/IOManagers/MeshGeometry.hpp source/IOManagers/PPMWriter.hpp source/Renderer/PointLight.hpp source/Renderer/RenderManager.hpp)
+set(SOURCES source/IOManagers/MeshGeometry.cpp source/IOManagers/PPMWriter.cpp source/Renderer/PointLight.cpp source/Renderer/RenderManager.cpp)
 
 add_executable(HelloEmbree source/HelloEmbree.cpp)
 add_executable(AsciiTriangles source/AsciiTriangles.cpp ${HEADERS} ${SOURCES})

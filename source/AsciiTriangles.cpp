@@ -1,5 +1,5 @@
 #include <embree3/rtcore.h>
-#include "RenderManager.hpp"
+#include "Renderer/RenderManager.hpp"
 #include "IOManagers/MeshGeometry.hpp"
 
 #include "IOManagers/PPMWriter.hpp"

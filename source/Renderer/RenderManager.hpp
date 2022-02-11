@@ -6,7 +6,7 @@
 #include <vector>
 #include <glm/glm.hpp>
 
-#include "IOManagers/MeshGeometry.hpp"
+#include "../IOManagers/MeshGeometry.hpp"
 #include "PointLight.hpp"
 
 class RenderManager
@@ -32,12 +32,12 @@ private:
 
 public:
     void AttachMeshGeometry(MeshGeometry* meshGeometry, glm::vec3 position);
-    void AddLight(glm::vec3 position, glm::vec3 colour);
+    void AddLight(glm::vec3 position, glm::vec3 colour, float intensity);
 
     void RenderScene(std::string outputFileName, u_int32_t imgWidth, u_int32_t imgHeight);
 
 private:
-    glm::vec3 CastRay(glm::vec3 origin, glm::vec3 direction, u_int16_t& rayDepth);
+    glm::vec3 TraceRay(glm::vec3 origin, glm::vec3 direction, u_int16_t& rayDepth);
 
     glm::vec3 CastShadowRays(glm::vec3 origin, glm::vec3 normal, glm::vec3 pointColour);
 };

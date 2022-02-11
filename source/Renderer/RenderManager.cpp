@@ -1,13 +1,14 @@
 #include "RenderManager.hpp"
 
-#include "IOManagers/PPMWriter.hpp"
+#include "../IOManagers/PPMWriter.hpp"
 
 #include <iostream>
 #include <limits>
+#include <glm/gtc/constants.hpp>
 
 RenderManager::RenderManager(RTCDevice* device, float borderL, float borderR, float borderT, float borderB, u_int16_t maxRayDepth) :
     m_device(device), m_scene(nullptr),
-    m_borderL(m_borderL), m_borderR(borderR), m_borderT(borderT), m_borderB(borderB), m_maxRayDepth(maxRayDepth),
+    m_borderL(borderL), m_borderR(borderR), m_borderT(borderT), m_borderB(borderB), m_maxRayDepth(maxRayDepth),
     m_meshObjects(std::vector<MeshGeometry*>()), m_sceneLights(std::vector<PointLight>())
 {
     if (m_device != nullptr)
@@ -41,10 +42,10 @@ void RenderManager::AttachMeshGeometry(MeshGeometry* meshGeometry, glm::vec3 pos
     m_meshObjects.push_back(meshGeometry);
 }
 
-void RenderManager::AddLight(glm::vec3 position, glm::vec3 colour)
+void RenderManager::AddLight(glm::vec3 position, glm::vec3 colour, float intensity)
 {
-    PointLight newLight(position, colour);
-    m_sceneLights.push_back(newLight);
+    PointLight sceneLight = PointLight(position, colour, intensity);
+    m_sceneLights.push_back(sceneLight);
 }
 
 void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, u_int32_t imgHeight)
@@ -55,13 +56,13 @@ void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, 
 
     for (int y = 0; y < imgHeight; y++)
     {
-        float ypos = m_borderT + ((float)y / imgHeight) * (m_borderB - m_borderT);
+        float ypos = m_borderT + ((y / (float)imgHeight) * (m_borderB - m_borderT));
         for (int x = 0; x < imgWidth; x++)
         {
-            float xpos = m_borderL + ((float)x / imgWidth) * (m_borderR - m_borderL);
+            float xpos = m_borderL + ((x / (float)imgWidth) * (m_borderR - m_borderL));
 
             u_int16_t rayDepth = 0;   // Ray Depth Initialised to 0
-            glm::vec3 pixelColour = CastRay(glm::vec3(xpos, ypos, -1.0f), glm::vec3(0.0f, 0.0f, 1.0f), rayDepth);
+            glm::vec3 pixelColour = TraceRay(glm::vec3(xpos, ypos, -2.0f), glm::vec3(0.0f, 0.0f, 1.0f), rayDepth);
 
             pixels.push_back(pixelColour);
         }
@@ -70,7 +71,7 @@ void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, 
     WriteToPPM(outputFileName, imgWidth, imgHeight, pixels);
 }
 
-glm::vec3 RenderManager::CastRay(glm::vec3 origin, glm::vec3 direction, u_int16_t& rayDepth)
+glm::vec3 RenderManager::TraceRay(glm::vec3 origin, glm::vec3 direction, u_int16_t& rayDepth)
 {
     RTCRayHit rayhit;
 
@@ -121,9 +122,10 @@ glm::vec3 RenderManager::CastShadowRays(glm::vec3 origin, glm::vec3 normal, glm:
 
     for (int i = 0; i < m_sceneLights.size(); i++)
     {
-        glm::vec3 lightDirection = m_sceneLights[i].position - origin;
+        glm::vec3 lightDirection = m_sceneLights[i].GetDirectionFromPoint(origin);
 
-        if (glm::dot(lightDirection, normal) <= 0.0f)
+        float facingRatio = glm::dot(glm::normalize(lightDirection), glm::normalize(normal));
+        if (facingRatio <= 0.0f)
             continue;
 
         RTCRay shadowray;
@@ -135,7 +137,12 @@ glm::vec3 RenderManager::CastShadowRays(glm::vec3 origin, glm::vec3 normal, glm:
 
         if (shadowray.tfar >= 1.0f)
         {
-            resultLightColour += m_sceneLights[i].colour;
+            float lightDistance = m_sceneLights[i].GetDistanceFromPoint(origin);
+            float surfaceArea = 4 * glm::pi<float>() * glm::pow(lightDistance, 2.0f);
+
+            glm::vec3 currentLightColour = (m_sceneLights[i].colour * m_sceneLights[i].intensity) / surfaceArea;
+
+            resultLightColour += currentLightColour;
         }
     }
 
