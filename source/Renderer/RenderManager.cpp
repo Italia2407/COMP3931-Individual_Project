@@ -140,7 +140,7 @@ glm::vec3 RenderManager::CastShadowRays(glm::vec3 origin, glm::vec3 normal, glm:
             float lightDistance = m_sceneLights[i].GetDistanceFromPoint(origin);
             float surfaceArea = 4 * glm::pi<float>() * glm::pow(lightDistance, 2.0f);
 
-            glm::vec3 currentLightColour = (m_sceneLights[i].colour * m_sceneLights[i].intensity) / surfaceArea;
+            glm::vec3 currentLightColour = facingRatio * (m_sceneLights[i].colour * m_sceneLights[i].intensity) / surfaceArea;
 
             resultLightColour += currentLightColour;
         }
