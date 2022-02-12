@@ -116,9 +116,9 @@ glm::vec3 RenderManager::TraceRay(glm::vec3 origin, glm::vec3 direction, u_int16
         return glm::vec3(0.0f, 0.0f, 0.0f);
 }
 
-glm::vec3 RenderManager::CastShadowRays(glm::vec3 origin, glm::vec3 normal, glm::vec3 pointColour)
+glm::vec3 RenderManager::CastShadowRays(glm::vec3 origin, glm::vec3 normal, glm::vec3 albedo)
 {
-    glm::vec3 resultLightColour = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec3 finalPointColour = glm::vec3(0.0f, 0.0f, 0.0f);
 
     for (int i = 0; i < m_sceneLights.size(); i++)
     {
@@ -137,18 +137,21 @@ glm::vec3 RenderManager::CastShadowRays(glm::vec3 origin, glm::vec3 normal, glm:
 
         if (shadowray.tfar >= 1.0f)
         {
+            glm::vec3 lightColour = m_sceneLights[i].colour * m_sceneLights[i].intensity;
             float lightDistance = m_sceneLights[i].GetDistanceFromPoint(origin);
             float surfaceArea = 4 * glm::pi<float>() * glm::pow(lightDistance, 2.0f);
 
-            glm::vec3 currentLightColour = facingRatio * (m_sceneLights[i].colour * m_sceneLights[i].intensity) / surfaceArea;
+            {
+                glm::vec3 pointColour;
+                
+                pointColour.r = ((lightColour.r / glm::pi<float>()) * facingRatio) / surfaceArea;
+                pointColour.g = ((lightColour.g / glm::pi<float>()) * facingRatio) / surfaceArea;
+                pointColour.b = ((lightColour.b / glm::pi<float>()) * facingRatio) / surfaceArea;
 
-            resultLightColour += currentLightColour;
+                finalPointColour += pointColour;
+            }
         }
     }
 
-    pointColour.r *= resultLightColour.r;
-    pointColour.g *= resultLightColour.g;
-    pointColour.b *= resultLightColour.b;
-
-    return pointColour;
+    return finalPointColour;
 }
