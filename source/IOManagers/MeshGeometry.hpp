@@ -9,10 +9,17 @@
 struct MeshProperties
 {
 public:
-    MeshProperties(glm::vec3 surfaceColour) :
-        surfaceColour(surfaceColour) {}
+    MeshProperties() {}
 
-    glm::vec3 surfaceColour;
+    glm::vec3 albedo;
+
+    float reflectivity;
+    float translucency;
+
+    float glossiness;
+    float glossFalloff;
+
+    float refractionIndex;
 };
 
 class MeshGeometry

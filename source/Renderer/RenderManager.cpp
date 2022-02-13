@@ -5,6 +5,8 @@
 #include <iostream>
 #include <limits>
 #include <glm/gtc/constants.hpp>
+#include <glm/gtc/random.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 RenderManager::RenderManager(RTCDevice* device, float borderL, float borderR, float borderT, float borderB, u_int16_t maxRayDepth) :
     m_device(device), m_scene(nullptr),
@@ -89,6 +91,8 @@ glm::vec3 RenderManager::TraceRay(glm::vec3 origin, glm::vec3 direction, u_int16
     {
         rayDepth++;
 
+        MeshProperties surfaceProperties = getMeshGeometryProperties(rayhit.hit.geomID);
+
         glm::vec3 hitPosition;
         {
             hitPosition.x = rayhit.ray.org_x + rayhit.ray.dir_x * rayhit.ray.tfar;
@@ -101,57 +105,89 @@ glm::vec3 RenderManager::TraceRay(glm::vec3 origin, glm::vec3 direction, u_int16
             surfaceNormal.y = rayhit.hit.Ng_y;
             surfaceNormal.z = rayhit.hit.Ng_z;
         }
-        glm::vec3 pointColour = getMeshGeometryProperties(rayhit.hit.geomID).surfaceColour;
+        glm::vec3 reflectionDirection = glm::angleAxis(glm::radians(180.0f), surfaceNormal) * -direction;
 
-        glm::vec3 returnColour = CastShadowRays(hitPosition, surfaceNormal, pointColour);
+        glm::vec3 surfaceColour = CastShadowRays(hitPosition, surfaceNormal, reflectionDirection, surfaceProperties);
+        glm::vec3 reflectionColour(0.0f, 0.0f, 0.0f);
+        glm::vec3 refractionColour(0.0f, 0.0f, 0.0f);
 
         if (rayDepth < m_maxRayDepth)
         {
+            // Calcualte Reflection Ray Colour
+            {
+                reflectionColour = TraceRay(hitPosition, reflectionDirection, rayDepth);
+            }
 
+            // Calculate Refraction Ray Colour
+            {
+
+            }
         }
+
+        glm::vec3 returnColour = (surfaceProperties.reflectivity * reflectionColour) + ((1-surfaceProperties.reflectivity) * surfaceColour);
+        returnColour = (surfaceProperties.translucency * refractionColour) + ((1-surfaceProperties.translucency) * returnColour);
 
         return returnColour;
     }
     else
-        return glm::vec3(0.0f, 0.0f, 0.0f);
+    {
+        if (rayDepth == 0)
+            return glm::vec3(0.4f, 0.5f, 0.65f);
+        
+        else
+            return glm::vec3(0.0f, 0.0f, 0.0f);
+    }
 }
 
-glm::vec3 RenderManager::CastShadowRays(glm::vec3 origin, glm::vec3 normal, glm::vec3 albedo)
+glm::vec3 RenderManager::CastShadowRays(glm::vec3 hitPosition, glm::vec3 surfaceNormal, glm::vec3 reflectionDirection, MeshProperties surfaceProperties)
 {
-    glm::vec3 finalPointColour = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec3 resultDiffuseColour = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec3 resultGlossColour = glm::vec3(0.0f, 0.0f, 0.0f);
 
     for (int i = 0; i < m_sceneLights.size(); i++)
     {
-        glm::vec3 lightDirection = m_sceneLights[i].GetDirectionFromPoint(origin);
+        glm::vec3 lightDirection = m_sceneLights[i].GetDirectionFromPoint(hitPosition);
 
-        float facingRatio = glm::dot(glm::normalize(lightDirection), glm::normalize(normal));
+        float facingRatio = glm::dot(glm::normalize(lightDirection), glm::normalize(surfaceNormal));
         if (facingRatio <= 0.0f)
             continue;
 
         RTCRay shadowray;
         
-        shadowray.org_x = origin.x; shadowray.org_y = origin.y; shadowray.org_z = origin.z;
+        shadowray.org_x = hitPosition.x; shadowray.org_y = hitPosition.y; shadowray.org_z = hitPosition.z;
         shadowray.dir_x = lightDirection.x; shadowray.dir_y = lightDirection.y; shadowray.dir_z = lightDirection.z;
         shadowray.tnear = 0.0f;
         shadowray.tfar = 1.0f;
 
+        glm::vec3 diffuseColour(0.0f, 0.0f, 0.0f);
+        glm::vec3 glossColour(0.0f, 0.0f, 0.0f);
+
         if (shadowray.tfar >= 1.0f)
         {
             glm::vec3 lightColour = m_sceneLights[i].colour * m_sceneLights[i].intensity;
-            float lightDistance = m_sceneLights[i].GetDistanceFromPoint(origin);
+            float lightDistance = m_sceneLights[i].GetDistanceFromPoint(hitPosition);
             float surfaceArea = 4 * glm::pi<float>() * glm::pow(lightDistance, 2.0f);
 
+            // Calculate Diffuse Colour
             {
-                glm::vec3 pointColour;
-                
-                pointColour.r = ((lightColour.r / glm::pi<float>()) * facingRatio) / surfaceArea;
-                pointColour.g = ((lightColour.g / glm::pi<float>()) * facingRatio) / surfaceArea;
-                pointColour.b = ((lightColour.b / glm::pi<float>()) * facingRatio) / surfaceArea;
+                diffuseColour.r = surfaceProperties.albedo.r * (lightColour.r * facingRatio) / surfaceArea;
+                diffuseColour.g = surfaceProperties.albedo.g * (lightColour.g * facingRatio) / surfaceArea;
+                diffuseColour.b = surfaceProperties.albedo.b * (lightColour.b * facingRatio) / surfaceArea;
 
-                finalPointColour += pointColour;
+                diffuseColour /= glm::pi<float>();
+            }
+
+            // Calculate Gloss Colour
+            {
+                float viewRatio = glm::dot(glm::normalize(reflectionDirection), glm::normalize(lightDirection));
+                viewRatio = glm::clamp(viewRatio, 0.0f, 1.0f);
+                glossColour = lightColour * glm::pow(viewRatio, surfaceProperties.glossFalloff);
             }
         }
+
+        resultDiffuseColour += diffuseColour;
+        resultGlossColour += glossColour;
     }
 
-    return finalPointColour;
+    return resultDiffuseColour + (resultGlossColour * surfaceProperties.glossiness);
 }

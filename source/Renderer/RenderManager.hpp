@@ -39,5 +39,5 @@ public:
 private:
     glm::vec3 TraceRay(glm::vec3 origin, glm::vec3 direction, u_int16_t& rayDepth);
 
-    glm::vec3 CastShadowRays(glm::vec3 origin, glm::vec3 normal, glm::vec3 pointColour);
+    glm::vec3 CastShadowRays(glm::vec3 hitPosition, glm::vec3 surfaceNormal, glm::vec3 reflectionDirection, MeshProperties surfaceProperties);
 };
