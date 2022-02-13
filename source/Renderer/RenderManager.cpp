@@ -164,15 +164,15 @@ glm::vec3 RenderManager::CastShadowRays(glm::vec3 hitPosition, glm::vec3 surface
 
         if (shadowray.tfar >= 1.0f)
         {
-            glm::vec3 lightColour = m_sceneLights[i].colour * m_sceneLights[i].intensity;
             float lightDistance = m_sceneLights[i].GetDistanceFromPoint(hitPosition);
             float surfaceArea = 4 * glm::pi<float>() * glm::pow(lightDistance, 2.0f);
+            glm::vec3 lightColour = (m_sceneLights[i].colour * m_sceneLights[i].intensity) / surfaceArea;
 
             // Calculate Diffuse Colour
             {
-                diffuseColour.r = surfaceProperties.albedo.r * (lightColour.r * facingRatio) / surfaceArea;
-                diffuseColour.g = surfaceProperties.albedo.g * (lightColour.g * facingRatio) / surfaceArea;
-                diffuseColour.b = surfaceProperties.albedo.b * (lightColour.b * facingRatio) / surfaceArea;
+                diffuseColour.r = surfaceProperties.albedo.r * (lightColour.r * facingRatio);
+                diffuseColour.g = surfaceProperties.albedo.g * (lightColour.g * facingRatio);
+                diffuseColour.b = surfaceProperties.albedo.b * (lightColour.b * facingRatio);
 
                 diffuseColour /= glm::pi<float>();
             }
