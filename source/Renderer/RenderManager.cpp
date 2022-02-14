@@ -28,9 +28,9 @@ glm::vec3 Camera::getPixelRayDirection(int x, int y, u_int16_t imgWidth, u_int16
     return glm::normalize(rayDirection);
 }
 
-RenderManager::RenderManager(RTCDevice* device, Camera camera, u_int16_t maxRayDepth) :
+RenderManager::RenderManager(RTCDevice* device, Camera camera, bool smoothShading, u_int16_t maxRayDepth) :
     m_device(device), m_scene(nullptr),
-    m_camera(camera),
+    m_camera(camera), m_smoothShading(smoothShading),
     m_meshObjects(std::vector<MeshGeometry*>()), m_sceneLights(std::vector<PointLight>())
 {
     if (m_device != nullptr)
@@ -49,12 +49,12 @@ void RenderManager::AttachMeshGeometry(MeshGeometry* meshGeometry, glm::vec3 pos
         vertices[i*3 + 2] = meshGeometry->vertices()[i].z + position.z;
     }
 
-    unsigned int* faces = (unsigned int*)rtcSetNewGeometryBuffer(geometry, RTC_BUFFER_TYPE_INDEX, 0, RTC_FORMAT_UINT3, 3*sizeof(unsigned int), meshGeometry->faces().size());
-    for (int i = 0; i < meshGeometry->faces().size(); i++)
+    unsigned int* faces = (unsigned int*)rtcSetNewGeometryBuffer(geometry, RTC_BUFFER_TYPE_INDEX, 0, RTC_FORMAT_UINT3, 3*sizeof(unsigned int), meshGeometry->faceVIDs().size());
+    for (int i = 0; i < meshGeometry->faceVIDs().size(); i++)
     {
-        faces[i*3 + 0] = meshGeometry->faces()[i].x;
-        faces[i*3 + 1] = meshGeometry->faces()[i].y;
-        faces[i*3 + 2] = meshGeometry->faces()[i].z;
+        faces[i*3 + 0] = meshGeometry->faceVIDs()[i].x;
+        faces[i*3 + 1] = meshGeometry->faceVIDs()[i].y;
+        faces[i*3 + 2] = meshGeometry->faceVIDs()[i].z;
     }
 
     rtcCommitGeometry(geometry);
@@ -108,7 +108,8 @@ glm::vec3 RenderManager::TraceRay(glm::vec3 origin, glm::vec3 direction, float n
     {
         rayDepth++;
 
-        MeshProperties surfaceProperties = getMeshGeometryProperties(rayhit.hit.geomID);
+        MeshGeometry* hitMesh = m_meshObjects[rayhit.hit.geomID];
+        MeshProperties surfaceProperties = hitMesh->properties();
 
         glm::vec3 hitPosition;
         {
@@ -121,6 +122,20 @@ glm::vec3 RenderManager::TraceRay(glm::vec3 origin, glm::vec3 direction, float n
             surfaceNormal.x = rayhit.hit.Ng_x;
             surfaceNormal.y = rayhit.hit.Ng_y;
             surfaceNormal.z = rayhit.hit.Ng_z;
+            if (m_smoothShading)
+            {
+                float a, b, c;
+
+                //std::cout << "Seg Here?\n";
+                hitMesh->CalculateBarycentricOfFace(rayhit.hit.primID, hitPosition, surfaceNormal, a, b, c);
+                //std::cout << "Seg Not Here.\n";
+
+                glm::uvec3 hitFace = hitMesh->faceNIDs()[rayhit.hit.primID];
+                //std::cout << "Seg Here!\n";
+                //surfaceNormal = (hitMesh->normals()[hitFace.x] * a) + (hitMesh->normals()[hitFace.y] * b) + (hitMesh->normals()[hitFace.z] * c);
+                surfaceNormal = (hitMesh->normals()[hitFace.x] * a) + (hitMesh->normals()[hitFace.y] * b) + (hitMesh->normals()[hitFace.z] * c);
+                //std::cout << "Then Seg Here!\n";
+            }
         }
         glm::vec3 reflectionDirection = glm::angleAxis(glm::radians(180.0f), surfaceNormal) * -direction;
 

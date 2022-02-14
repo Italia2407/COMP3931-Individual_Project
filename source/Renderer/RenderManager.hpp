@@ -28,13 +28,14 @@ public:
 class RenderManager
 {
 public:
-    RenderManager(RTCDevice* device, Camera camera, u_int16_t maxRayDepth);
+    RenderManager(RTCDevice* device, Camera camera, bool smoothShading, u_int16_t maxRayDepth);
 
 private:
     RTCDevice* m_device;
     RTCScene m_scene;
 
     Camera m_camera;
+    bool m_smoothShading;
 
     u_int16_t m_maxRayDepth;
 
