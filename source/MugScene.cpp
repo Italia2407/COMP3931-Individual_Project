@@ -24,5 +24,6 @@ int main()
 
     renderer.AttachMeshGeometry(spoon, glm::vec3(0.0f, 0.0f, 0.0f));
     renderer.AddLight(glm::vec3(-0.15f, 1.3f, 2.0f), glm::vec3(1.0f, 1.0f, 1.0f), 42.0f);
+    renderer.AddLight(glm::vec3(0.0f, 0.0f, 2.5f), glm::vec3(1.0f, 0.0f, 0.0f), 60.0f);
     renderer.RenderScene("Sphere.ppm", 2048, 2048);
 }
