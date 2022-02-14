@@ -8,9 +8,29 @@
 #include <glm/gtc/random.hpp>
 #include <glm/gtc/quaternion.hpp>
 
-RenderManager::RenderManager(RTCDevice* device, float borderL, float borderR, float borderT, float borderB, u_int16_t maxRayDepth) :
+Camera::Camera(glm::vec3 position, float fov, float np, float fp) :
+        position(position), fieldOfView(fov), nearPlane(np), farPlane(fp) {}
+
+glm::vec3 Camera::getPixelRayDirection(int x, int y, u_int16_t imgWidth, u_int16_t imgHeight)
+{
+    float xndc = (x + 0.5f) / imgWidth;
+    float yndc = (y + 0.5f) / imgHeight;
+
+    float xscreen = (xndc * 2) - 1;
+    float yscreen = 1 - (yndc * 2);
+
+
+    float aspectRatio = (float)imgWidth / imgHeight;
+    float xcamera = xscreen * aspectRatio * glm::tan(glm::radians(fieldOfView));
+    float ycamera = yscreen * glm::tan(glm::radians(fieldOfView));
+
+    glm::vec3 rayDirection = glm::vec3(xcamera, ycamera, -1.0f);
+    return glm::normalize(rayDirection);
+}
+
+RenderManager::RenderManager(RTCDevice* device, Camera camera, u_int16_t maxRayDepth) :
     m_device(device), m_scene(nullptr),
-    m_borderL(borderL), m_borderR(borderR), m_borderT(borderT), m_borderB(borderB), m_maxRayDepth(maxRayDepth),
+    m_camera(camera),
     m_meshObjects(std::vector<MeshGeometry*>()), m_sceneLights(std::vector<PointLight>())
 {
     if (m_device != nullptr)
@@ -58,13 +78,10 @@ void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, 
 
     for (int y = 0; y < imgHeight; y++)
     {
-        float ypos = m_borderT + ((y / (float)imgHeight) * (m_borderB - m_borderT));
         for (int x = 0; x < imgWidth; x++)
         {
-            float xpos = m_borderL + ((x / (float)imgWidth) * (m_borderR - m_borderL));
-
             u_int16_t rayDepth = 0;   // Ray Depth Initialised to 0
-            glm::vec3 pixelColour = TraceRay(glm::vec3(xpos, ypos, -2.0f), glm::vec3(0.0f, 0.0f, 1.0f), rayDepth);
+            glm::vec3 pixelColour = TraceRay(m_camera.position, m_camera.getPixelRayDirection(x, y, imgWidth, imgHeight), m_camera.nearPlane, m_camera.farPlane, rayDepth);
 
             pixels.push_back(pixelColour);
         }
@@ -73,14 +90,14 @@ void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, 
     WriteToPPM(outputFileName, imgWidth, imgHeight, pixels);
 }
 
-glm::vec3 RenderManager::TraceRay(glm::vec3 origin, glm::vec3 direction, u_int16_t& rayDepth)
+glm::vec3 RenderManager::TraceRay(glm::vec3 origin, glm::vec3 direction, float near, float far, u_int16_t& rayDepth)
 {
     RTCRayHit rayhit;
 
     rayhit.ray.org_x = origin.x; rayhit.ray.org_y = origin.y; rayhit.ray.org_z = origin.z;
     rayhit.ray.dir_x = direction.x; rayhit.ray.dir_y = direction.y; rayhit.ray.dir_z = direction.z;
-    rayhit.ray.tnear = 0.0f;
-    rayhit.ray.tfar = std::numeric_limits<float>::infinity();
+    rayhit.ray.tnear = near;
+    rayhit.ray.tfar = far;
     rayhit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
 
     RTCIntersectContext context;
@@ -115,7 +132,7 @@ glm::vec3 RenderManager::TraceRay(glm::vec3 origin, glm::vec3 direction, u_int16
         {
             // Calcualte Reflection Ray Colour
             {
-                reflectionColour = TraceRay(hitPosition, reflectionDirection, rayDepth);
+                reflectionColour = TraceRay(hitPosition, reflectionDirection, 0.0f, std::numeric_limits<float>::infinity(), rayDepth);
             }
 
             // Calculate Refraction Ray Colour
