@@ -28,7 +28,7 @@ public:
 class RenderManager
 {
 public:
-    RenderManager(RTCDevice* device, Camera camera, bool smoothShading, u_int16_t maxRayDepth);
+    RenderManager(RTCDevice* device, Camera camera, bool smoothShading, u_int32_t multisamplingIterations, u_int16_t maxRayDepth);
 
 private:
     RTCDevice* m_device;
@@ -37,10 +37,11 @@ private:
     Camera m_camera;
     bool m_smoothShading;
 
+    u_int32_t m_multisamplingIterations;
     u_int16_t m_maxRayDepth;
 
     std::vector<MeshGeometry*> m_meshObjects;
-    MeshProperties getMeshGeometryProperties(int meshGeometryID) { return m_meshObjects[meshGeometryID]->properties(); }
+    MaterialProperties getMeshGeometryProperties(int meshGeometryID) { return m_meshObjects[meshGeometryID]->properties(); }
 
     std::vector<PointLight> m_sceneLights;
 
@@ -51,7 +52,9 @@ public:
     void RenderScene(std::string outputFileName, u_int32_t imgWidth, u_int32_t imgHeight);
 
 private:
-    glm::vec3 TraceRay(glm::vec3 origin, glm::vec3 direction, float near, float far, u_int16_t& rayDepth);
+    //glm::vec3 TraceRay(glm::vec3 origin, glm::vec3 direction, float near, float far, u_int16_t& rayDepth);
+    glm::vec3 CastRay(glm::vec3 origin, glm::vec3 direction, float near, float far, RTCIntersectContext& context, u_int16_t rayDepth);
 
-    glm::vec3 CastShadowRays(glm::vec3 hitPosition, glm::vec3 surfaceNormal, glm::vec3 reflectionDirection, MeshProperties surfaceProperties);
+    glm::vec3 CalculateDiffuseColour(glm::vec3 hitPoint, glm::vec3 surfaceNormal, glm::vec3 reflectionDirection, PointLight light, MaterialProperties surfaceProperties, RTCIntersectContext& context);
+    glm::vec3 CalculateGlassyColour(glm::vec3 hitPoint, glm::vec3 surfaceNormal, glm::vec3 reflectionDirection, MaterialProperties surfaceProperties, RTCIntersectContext& context, u_int32_t rayDepth);
 };

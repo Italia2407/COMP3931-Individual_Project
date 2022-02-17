@@ -6,26 +6,32 @@
 #include <string>
 #include <vector>
 
-struct MeshProperties
+struct MaterialProperties
 {
-public:
-    MeshProperties() {}
+    MaterialProperties();
 
-    glm::vec3 albedo;
+    // General Properties
+    glm::vec3 albedoColour;
 
-    float reflectivity;
-    float translucency;
+    float roughness;
+
+    // Diffuse Properties
+    float lightReflection;
 
     float glossiness;
-    float glossFalloff;
+    float glossyFalloff;
 
-    float refractionIndex;
+    // 
+    float glassiness;
+    float translucency;
+    
+    float refractiveIndex;
 };
 
 class MeshGeometry
 {
 public:
-    MeshGeometry(MeshProperties properties);
+    MeshGeometry(MaterialProperties properties);
 
 private:
     std::vector<glm::vec3> m_vertices;
@@ -34,12 +40,12 @@ private:
     std::vector<glm::uvec3> m_faceVID;
     std::vector<glm::uvec3> m_faceNID;
 
-    MeshProperties m_properties;
+    MaterialProperties m_properties;
 
 public:
     bool LoadFromOBJ(std::string fileName);
 
-    void CalculateBarycentricOfFace(u_int32_t faceID, glm::vec3 point, glm::vec3 normal, float& a, float& b, float& c);
+    void CalculateBarycentricOfFace(u_int32_t faceID, glm::vec3 point, float& a, float& b, float& c);
 
 public:
     const std::vector<glm::vec3>& vertices() { return m_vertices; }
@@ -48,5 +54,5 @@ public:
     const std::vector<glm::uvec3>& faceVIDs() { return m_faceVID; }
     const std::vector<glm::uvec3>& faceNIDs() { return m_faceNID; }
 
-    const MeshProperties& properties() { return m_properties; }
+    const MaterialProperties& properties() { return m_properties; }
 };

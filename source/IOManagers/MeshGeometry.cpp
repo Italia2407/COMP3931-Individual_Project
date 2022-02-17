@@ -4,7 +4,12 @@
 #include <fstream>
 #include <sstream>
 
-MeshGeometry::MeshGeometry(MeshProperties properties) :
+MaterialProperties::MaterialProperties() :
+	albedoColour(glm::vec3(0.0f, 0.0f, 0.0f)), roughness(0.0f),
+	lightReflection(0.0f), glossiness(0.0f), glossyFalloff(0.0f),
+	glassiness(0.0f), translucency(0.0f), refractiveIndex(1.0f) {}
+
+MeshGeometry::MeshGeometry(MaterialProperties properties) :
     m_vertices(std::vector<glm::vec3>()), m_normals(std::vector<glm::vec3>()), m_faceVID(std::vector<glm::uvec3>()), m_faceNID(std::vector<glm::uvec3>()), m_properties(properties) {}
 
 bool MeshGeometry::LoadFromOBJ(std::string fileName)
@@ -57,13 +62,13 @@ bool MeshGeometry::LoadFromOBJ(std::string fileName)
 	return true;
 }
 
-void MeshGeometry::CalculateBarycentricOfFace(u_int32_t faceID, glm::vec3 point, glm::vec3 normal, float& a, float& b, float& c)
+void MeshGeometry::CalculateBarycentricOfFace(u_int32_t faceID, glm::vec3 point, float& a, float& b, float& c)
 {
 	glm::vec3 pa = m_vertices[m_faceVID[faceID].x] - point;
 	glm::vec3 pb = m_vertices[m_faceVID[faceID].y] - point;
 	glm::vec3 pc = m_vertices[m_faceVID[faceID].z] - point;
 
-	a = glm::length(glm::cross(pb, pc)) * glm::sign(glm::dot(glm::cross(pb, pc), normal));
-	b = glm::length(glm::cross(pc, pa)) * glm::sign(glm::dot(glm::cross(pc, pa), normal));
-	c = glm::length(glm::cross(pa, pb)) * glm::sign(glm::dot(glm::cross(pa, pb), normal));
+	a = glm::length(glm::cross(pb, pc));
+	b = glm::length(glm::cross(pc, pa));
+	c = glm::length(glm::cross(pa, pb));
 }

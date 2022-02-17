@@ -13,8 +13,8 @@ Camera::Camera(glm::vec3 position, float fov, float np, float fp) :
 
 glm::vec3 Camera::getPixelRayDirection(int x, int y, u_int16_t imgWidth, u_int16_t imgHeight)
 {
-    float xndc = (x + 0.5f) / imgWidth;
-    float yndc = (y + 0.5f) / imgHeight;
+    float xndc = (x + glm::linearRand(0.0f, 1.0f)) / imgWidth;
+    float yndc = (y + glm::linearRand(0.0f, 1.0f)) / imgHeight;
 
     float xscreen = (xndc * 2) - 1;
     float yscreen = 1 - (yndc * 2);
@@ -28,9 +28,10 @@ glm::vec3 Camera::getPixelRayDirection(int x, int y, u_int16_t imgWidth, u_int16
     return glm::normalize(rayDirection);
 }
 
-RenderManager::RenderManager(RTCDevice* device, Camera camera, bool smoothShading, u_int16_t maxRayDepth) :
+RenderManager::RenderManager(RTCDevice* device, Camera camera, bool smoothShading, u_int32_t multisamplingIterations, u_int16_t maxRayDepth) :
     m_device(device), m_scene(nullptr),
     m_camera(camera), m_smoothShading(smoothShading),
+    m_multisamplingIterations(multisamplingIterations), m_maxRayDepth(maxRayDepth),
     m_meshObjects(std::vector<MeshGeometry*>()), m_sceneLights(std::vector<PointLight>())
 {
     if (m_device != nullptr)
@@ -80,9 +81,18 @@ void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, 
     {
         for (int x = 0; x < imgWidth; x++)
         {
-            u_int16_t rayDepth = 0;   // Ray Depth Initialised to 0
-            glm::vec3 pixelColour = TraceRay(m_camera.position, m_camera.getPixelRayDirection(x, y, imgWidth, imgHeight), m_camera.nearPlane, m_camera.farPlane, rayDepth);
+            glm::vec3 pixelColour(0.0f, 0.0f, 0.0f);
+            for (int i = 0; i < m_multisamplingIterations; i++)
+            {
+                RTCIntersectContext context;
+                rtcInitIntersectContext(&context);
 
+                pixelColour += CastRay(m_camera.position, m_camera.getPixelRayDirection(x, y, imgWidth, imgHeight), m_camera.nearPlane, m_camera.farPlane, context, 0);
+            }
+            
+            pixelColour.r = pixelColour.r / (float)m_multisamplingIterations;
+            pixelColour.g = pixelColour.g / (float)m_multisamplingIterations;
+            pixelColour.b = pixelColour.b / (float)m_multisamplingIterations;
             pixels.push_back(pixelColour);
         }
     }
@@ -90,34 +100,31 @@ void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, 
     WriteToPPM(outputFileName, imgWidth, imgHeight, pixels);
 }
 
-glm::vec3 RenderManager::TraceRay(glm::vec3 origin, glm::vec3 direction, float near, float far, u_int16_t& rayDepth)
+glm::vec3 RenderManager::CastRay(glm::vec3 origin, glm::vec3 direction, float near, float far, RTCIntersectContext& context, u_int16_t rayDepth)
 {
     RTCRayHit rayhit;
+    {
+        rayhit.ray.org_x = origin.x; rayhit.ray.org_y = origin.y; rayhit.ray.org_z = origin.z;
+        rayhit.ray.dir_x = direction.x; rayhit.ray.dir_y = direction.y; rayhit.ray.dir_z = direction.z;
+        rayhit.ray.tnear = near;
+        rayhit.ray.tfar = far;
+        rayhit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
+    }
 
-    rayhit.ray.org_x = origin.x; rayhit.ray.org_y = origin.y; rayhit.ray.org_z = origin.z;
-    rayhit.ray.dir_x = direction.x; rayhit.ray.dir_y = direction.y; rayhit.ray.dir_z = direction.z;
-    rayhit.ray.tnear = near;
-    rayhit.ray.tfar = far;
-    rayhit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
-
-    RTCIntersectContext context;
-    rtcInitIntersectContext(&context);
     rtcIntersect1(m_scene, &context, &rayhit);
 
     if (rayhit.hit.geomID != RTC_INVALID_GEOMETRY_ID)
     {
-        rayDepth++;
-
         MeshGeometry* hitMesh = m_meshObjects[rayhit.hit.geomID];
-        MeshProperties surfaceProperties = hitMesh->properties();
+        MaterialProperties surfaceProperties = hitMesh->properties();
 
-        glm::vec3 hitPosition;
+        glm::vec3 hitPoint(0.0f, 0.0f, 0.0f);
         {
-            hitPosition.x = rayhit.ray.org_x + rayhit.ray.dir_x * rayhit.ray.tfar;
-            hitPosition.y = rayhit.ray.org_y + rayhit.ray.dir_y * rayhit.ray.tfar;
-            hitPosition.z = rayhit.ray.org_z + rayhit.ray.dir_z * rayhit.ray.tfar;
+            hitPoint.x = rayhit.ray.org_x + rayhit.ray.dir_x * rayhit.ray.tfar;
+            hitPoint.y = rayhit.ray.org_y + rayhit.ray.dir_y * rayhit.ray.tfar;
+            hitPoint.z = rayhit.ray.org_z + rayhit.ray.dir_z * rayhit.ray.tfar;
         }
-        glm::vec3 surfaceNormal;
+        glm::vec3 surfaceNormal(0.0f, 0.0f, 0.0f);
         {
             surfaceNormal.x = rayhit.hit.Ng_x;
             surfaceNormal.y = rayhit.hit.Ng_y;
@@ -125,101 +132,115 @@ glm::vec3 RenderManager::TraceRay(glm::vec3 origin, glm::vec3 direction, float n
             if (m_smoothShading)
             {
                 float a, b, c;
-
-                //std::cout << "Seg Here?\n";
-                hitMesh->CalculateBarycentricOfFace(rayhit.hit.primID, hitPosition, surfaceNormal, a, b, c);
-                //std::cout << "Seg Not Here.\n";
+                hitMesh->CalculateBarycentricOfFace(rayhit.hit.primID, hitPoint, a, b, c);
 
                 glm::uvec3 hitFace = hitMesh->faceNIDs()[rayhit.hit.primID];
-                //std::cout << "Seg Here!\n";
-                //surfaceNormal = (hitMesh->normals()[hitFace.x] * a) + (hitMesh->normals()[hitFace.y] * b) + (hitMesh->normals()[hitFace.z] * c);
-                surfaceNormal = (hitMesh->normals()[hitFace.x] * a) + (hitMesh->normals()[hitFace.y] * b) + (hitMesh->normals()[hitFace.z] * c);
-                //std::cout << "Then Seg Here!\n";
+                surfaceNormal = (glm::normalize(hitMesh->normals()[hitFace.x]) * a) + (glm::normalize(hitMesh->normals()[hitFace.y]) * b) + (glm::normalize(hitMesh->normals()[hitFace.z]) * c);
+                surfaceNormal = glm::normalize(surfaceNormal);
             }
         }
-        glm::vec3 reflectionDirection = glm::angleAxis(glm::radians(180.0f), surfaceNormal) * -direction;
-
-        glm::vec3 surfaceColour = CastShadowRays(hitPosition, surfaceNormal, reflectionDirection, surfaceProperties);
-        glm::vec3 reflectionColour(0.0f, 0.0f, 0.0f);
-        glm::vec3 refractionColour(0.0f, 0.0f, 0.0f);
-
-        if (rayDepth < m_maxRayDepth)
+        glm::vec3 reflectionDirection = (-glm::normalize(direction)) * glm::angleAxis(glm::radians(180.0f), glm::normalize(surfaceNormal));
         {
-            // Calcualte Reflection Ray Colour
-            {
-                reflectionColour = TraceRay(hitPosition, reflectionDirection, 0.0f, std::numeric_limits<float>::infinity(), rayDepth);
-            }
+            glm::vec3 randomDirection = glm::normalize(glm::sphericalRand(1.0f));
+            if (randomDirection == -glm::normalize(surfaceNormal) || glm::dot(randomDirection, glm::normalize(surfaceNormal)) < 0.0f)
+                randomDirection = -randomDirection;
 
-            // Calculate Refraction Ray Colour
-            {
+            float angle = glm::acos(glm::dot(reflectionDirection, randomDirection));
+            angle *= surfaceProperties.roughness;
 
-            }
+            glm::vec3 perpendicular = glm::cross(reflectionDirection, randomDirection);
+            reflectionDirection = reflectionDirection * glm::angleAxis(angle, glm::normalize(perpendicular));
         }
 
-        glm::vec3 returnColour = (surfaceProperties.reflectivity * reflectionColour) + ((1-surfaceProperties.reflectivity) * surfaceColour);
-        returnColour = (surfaceProperties.translucency * refractionColour) + ((1-surfaceProperties.translucency) * returnColour);
+        double randChoice = glm::linearRand(0.0f, 1.0f);
 
-        return returnColour;
-    }
-    else
-    {
-        if (rayDepth == 0)
-            return glm::vec3(0.4f, 0.5f, 0.65f);
-        
+        if (randChoice > surfaceProperties.glassiness || surfaceProperties.glassiness == 0.0f)
+        {
+            glm::vec3 diffuseColour(0.0f, 0.0f, 0.0f);
+            for (int i = 0; i < m_sceneLights.size(); i++)
+            {
+                diffuseColour += CalculateDiffuseColour(hitPoint, surfaceNormal, reflectionDirection, m_sceneLights[i], surfaceProperties, context);
+            }
+
+            glm::vec3 ambientColour(0.0f, 0.0f, 0.0f);
+            if (rayDepth < m_maxRayDepth)
+            {
+                ambientColour = CastRay(hitPoint, reflectionDirection, 0.01f, std::numeric_limits<float>().infinity(), context, rayDepth + 1);
+                ambientColour *= surfaceProperties.lightReflection;
+            }
+            diffuseColour += ambientColour;
+
+            return diffuseColour;
+        }
         else
-            return glm::vec3(0.0f, 0.0f, 0.0f);
+        {
+            glm::vec3 glassyColour(0.0f, 0.0f, 0.0f);
+            if (rayDepth < m_maxRayDepth)
+            {
+                glassyColour = CalculateGlassyColour(hitPoint, surfaceNormal, reflectionDirection, surfaceProperties, context, rayDepth + 1);
+            }
+
+            return glassyColour;
+        }
     }
+
+    return glm::vec3(0.0f, 0.0f, 0.0f);
 }
 
-glm::vec3 RenderManager::CastShadowRays(glm::vec3 hitPosition, glm::vec3 surfaceNormal, glm::vec3 reflectionDirection, MeshProperties surfaceProperties)
+glm::vec3 RenderManager::CalculateDiffuseColour(glm::vec3 hitPoint, glm::vec3 surfaceNormal, glm::vec3 reflectionDirection, PointLight light, MaterialProperties surfaceProperties, RTCIntersectContext& context)
 {
-    glm::vec3 resultDiffuseColour = glm::vec3(0.0f, 0.0f, 0.0f);
-    glm::vec3 resultGlossColour = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec3 lightDirection = light.GetDirectionFromPoint(hitPoint);
 
-    for (int i = 0; i < m_sceneLights.size(); i++)
+    float facingRatio = glm::dot(glm::normalize(lightDirection), glm::normalize(surfaceNormal));
+    if (facingRatio <= 0.0f)
+        return glm::vec3(0.0f, 0.0f, 0.0f);
+
+    RTCRay shadowray;
     {
-        glm::vec3 lightDirection = m_sceneLights[i].GetDirectionFromPoint(hitPosition);
-
-        float facingRatio = glm::dot(glm::normalize(lightDirection), glm::normalize(surfaceNormal));
-        if (facingRatio <= 0.0f)
-            continue;
-
-        RTCRay shadowray;
-        
-        shadowray.org_x = hitPosition.x; shadowray.org_y = hitPosition.y; shadowray.org_z = hitPosition.z;
+        shadowray.org_x = hitPoint.x; shadowray.org_y = hitPoint.y; shadowray.org_z = hitPoint.z;
         shadowray.dir_x = lightDirection.x; shadowray.dir_y = lightDirection.y; shadowray.dir_z = lightDirection.z;
-        shadowray.tnear = 0.0f;
-        shadowray.tfar = 1.0f;
-
-        glm::vec3 diffuseColour(0.0f, 0.0f, 0.0f);
-        glm::vec3 glossColour(0.0f, 0.0f, 0.0f);
-
-        if (shadowray.tfar >= 1.0f)
-        {
-            float lightDistance = m_sceneLights[i].GetDistanceFromPoint(hitPosition);
-            float surfaceArea = 4 * glm::pi<float>() * glm::pow(lightDistance, 2.0f);
-            glm::vec3 lightColour = (m_sceneLights[i].colour * m_sceneLights[i].intensity) / surfaceArea;
-
-            // Calculate Diffuse Colour
-            {
-                diffuseColour.r = surfaceProperties.albedo.r * (lightColour.r * facingRatio);
-                diffuseColour.g = surfaceProperties.albedo.g * (lightColour.g * facingRatio);
-                diffuseColour.b = surfaceProperties.albedo.b * (lightColour.b * facingRatio);
-
-                diffuseColour /= glm::pi<float>();
-            }
-
-            // Calculate Gloss Colour
-            {
-                float viewRatio = glm::dot(glm::normalize(reflectionDirection), glm::normalize(lightDirection));
-                viewRatio = glm::clamp(viewRatio, 0.0f, 1.0f);
-                glossColour = lightColour * glm::pow(viewRatio, surfaceProperties.glossFalloff);
-            }
-        }
-
-        resultDiffuseColour += diffuseColour;
-        resultGlossColour += glossColour;
+        shadowray.tnear = 0.01f;
+        shadowray.tfar = 1.01f;
     }
 
-    return resultDiffuseColour + (resultGlossColour * surfaceProperties.glossiness);
+    rtcOccluded1(m_scene, &context, &shadowray);
+    if (shadowray.tfar >= 1.0f)
+    {
+        float lightDistance = light.GetDistanceFromPoint(hitPoint);
+        float lightDim = 4 * glm::pi<float>() * glm::pow(lightDistance, 2.0f);
+        glm::vec3 lightColour = (facingRatio * light.colour * light.intensity) / lightDim;
+
+        float viewRatio = glm::dot(glm::normalize(reflectionDirection), glm::normalize(lightDirection));
+        viewRatio = glm::clamp(viewRatio, 0.0f, 1.0f);
+
+        glm::vec3 diffuseColour(0.0f, 0.0f, 0.0f); 
+        {
+            diffuseColour.r = surfaceProperties.albedoColour.r * lightColour.r;
+            diffuseColour.g = surfaceProperties.albedoColour.g * lightColour.g;
+            diffuseColour.b = surfaceProperties.albedoColour.b * lightColour.b;
+
+            diffuseColour /= glm::pi<float>();
+        }
+
+        glm::vec3 glossColour = lightColour * glm::pow(viewRatio, surfaceProperties.glossyFalloff) * surfaceProperties.glossiness;
+
+        return diffuseColour + glossColour;
+    }
+
+    return glm::vec3(0.0f, 0.0f, 0.0f);
+}
+
+glm::vec3 RenderManager::CalculateGlassyColour(glm::vec3 hitPoint, glm::vec3 surfaceNormal, glm::vec3 reflectionDirection, MaterialProperties surfaceProperties, RTCIntersectContext& context, u_int32_t rayDepth)
+{
+    glm::vec3 reflectionColour(0.0f, 0.0f, 0.0f);
+    glm::vec3 refractionColour(0.0f, 0.0f, 0.0f);
+
+    reflectionColour = CastRay(hitPoint, reflectionDirection, 0.01f, std::numeric_limits<float>().infinity(), context, rayDepth);
+    {
+        reflectionColour.r *= surfaceProperties.albedoColour.r;
+        reflectionColour.g *= surfaceProperties.albedoColour.g;
+        reflectionColour.b *= surfaceProperties.albedoColour.b;
+    }
+    
+    return reflectionColour;
 }

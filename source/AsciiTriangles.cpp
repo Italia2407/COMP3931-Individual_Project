@@ -10,10 +10,10 @@
 int main()
 {
     RTCDevice device = rtcNewDevice(NULL);
-    RenderManager renderer(&device, Camera(glm::vec3(0.0f, 0.0f, 0.0f), 30.0f, 0.01f, 1000.0f), false, 8);
+    RenderManager renderer(&device, Camera(glm::vec3(0.0f, 0.0f, 0.0f), 30.0f, 0.01f, 1000.0f), false, 20, 8);
 
-    MeshProperties shader = MeshProperties();
-    MeshGeometry* TriForce = new MeshGeometry(MeshProperties(shader));
+    MaterialProperties shader = MaterialProperties();
+    MeshGeometry* TriForce = new MeshGeometry(shader);
     TriForce->LoadFromOBJ("../assets/TriForce.obj");
 
     renderer.AttachMeshGeometry(TriForce, glm::vec3(0.0f, 0.0f, 0.0f));
