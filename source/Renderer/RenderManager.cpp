@@ -174,10 +174,18 @@ glm::vec3 RenderManager::CastRay(glm::vec3 origin, glm::vec3 direction, float ne
         }
         else
         {
-            glm::vec3 glassyColour(0.0f, 0.0f, 0.0f);
+            glm::vec3 glassyColour(0.0f, 0.0f, 0.0f); // The Reflection/Refraction Colour
             if (rayDepth < m_maxRayDepth)
             {
-                glassyColour = CalculateGlassyColour(hitPoint, surfaceNormal, reflectionDirection, surfaceProperties, context, rayDepth + 1);
+                float randChoice = glm::linearRand(0.0f, 1.0f);
+                if (randChoice > surfaceProperties.translucency || surfaceProperties.translucency == 0.0f)
+                {
+                    glassyColour = CalculateReflectionColour(hitPoint, reflectionDirection, surfaceProperties, context, rayDepth + 1);
+                }
+                else
+                {
+                    glassyColour = CalculateRefractionColour(hitPoint, surfaceNormal, reflectionDirection, surfaceProperties, context, rayDepth);
+                }
             }
 
             return glassyColour;
@@ -230,17 +238,77 @@ glm::vec3 RenderManager::CalculateDiffuseColour(glm::vec3 hitPoint, glm::vec3 su
     return glm::vec3(0.0f, 0.0f, 0.0f);
 }
 
-glm::vec3 RenderManager::CalculateGlassyColour(glm::vec3 hitPoint, glm::vec3 surfaceNormal, glm::vec3 reflectionDirection, MaterialProperties surfaceProperties, RTCIntersectContext& context, u_int32_t rayDepth)
+glm::vec3 RenderManager::CalculateReflectionColour(glm::vec3 hitPoint, glm::vec3 reflectionDirection, MaterialProperties surfaceProperties, RTCIntersectContext& context, u_int32_t rayDepth)
 {
-    glm::vec3 reflectionColour(0.0f, 0.0f, 0.0f);
-    glm::vec3 refractionColour(0.0f, 0.0f, 0.0f);
-
-    reflectionColour = CastRay(hitPoint, reflectionDirection, 0.01f, std::numeric_limits<float>().infinity(), context, rayDepth);
+    glm::vec3 reflectionColour = CastRay(hitPoint, reflectionDirection, 0.01f, std::numeric_limits<float>().infinity(), context, rayDepth);
     {
         reflectionColour.r *= surfaceProperties.albedoColour.r;
         reflectionColour.g *= surfaceProperties.albedoColour.g;
         reflectionColour.b *= surfaceProperties.albedoColour.b;
     }
-    
+
     return reflectionColour;
+}
+
+glm::vec3 RenderManager::CalculateRefractionColour(glm::vec3 hitPoint, glm::vec3 surfaceNormal, glm::vec3 reflectionDirection, MaterialProperties surfaceProperties, RTCIntersectContext& context, u_int32_t rayDepth)
+{
+    float incidenceAngle = glm::acos(glm::dot(glm::normalize(surfaceNormal), glm::normalize(reflectionDirection)));
+    float refractionAngle = glm::asin((1/surfaceProperties.refractiveIndex) * glm::sin(incidenceAngle));
+    glm::vec3 perpendicular = glm::normalize(glm::cross(glm::normalize(reflectionDirection), glm::normalize(surfaceNormal)));
+    glm::vec3 refractionDirection = -surfaceNormal * glm::angleAxis(refractionAngle, perpendicular);
+
+    RTCRayHit refractionRay;
+    {
+        refractionRay.ray.org_x = hitPoint.x; refractionRay.ray.org_y = hitPoint.y; refractionRay.ray.org_z = hitPoint.z;
+        refractionRay.ray.dir_x = refractionDirection.x; refractionRay.ray.dir_y = refractionDirection.y; refractionRay.ray.dir_z = refractionDirection.z;
+        refractionRay.ray.tnear = 0.01f;
+        refractionRay.ray.tfar = std::numeric_limits<float>().infinity();
+    }
+    rtcIntersect1(m_scene, &context, &refractionRay);
+
+    glm::vec3 refractionColour(0.0f, 0.0f, 0.0f);
+    int internalReflections = 0;
+    while (true)
+    {
+        glm::vec3 interiorNormal;
+        {
+            interiorNormal.x = -refractionRay.hit.Ng_x; interiorNormal.y = -refractionRay.hit.Ng_y; interiorNormal.z = -refractionRay.hit.Ng_z;
+        }
+        {
+            hitPoint.x = refractionRay.ray.org_x + refractionRay.ray.dir_x * refractionRay.ray.tfar;
+            hitPoint.y = refractionRay.ray.org_y + refractionRay.ray.dir_y * refractionRay.ray.tfar;
+            hitPoint.z = refractionRay.ray.org_z + refractionRay.ray.dir_z * refractionRay.ray.tfar;
+        }
+        float interiorAngleSin = glm::sin(glm::dot(glm::normalize(-interiorNormal), glm::normalize(refractionDirection)));
+        float exitAngleSin = surfaceProperties.refractiveIndex * interiorAngleSin;
+
+        // Send Ray out to World
+        if (exitAngleSin <= 1.0f)
+        {
+            perpendicular = glm::normalize(glm::cross(glm::normalize(refractionDirection), glm::normalize(-interiorNormal)));
+            glm::vec3 exitDirection = -interiorNormal * glm::quat(glm::asin(exitAngleSin), -interiorNormal);
+
+            refractionColour = CastRay(hitPoint, exitDirection, 0.01f, std::numeric_limits<float>().infinity(), context, rayDepth + internalReflections);
+            break;
+        }
+        // Internally Reflect Ray
+        else if (rayDepth + internalReflections < m_maxRayDepth)
+        {
+            internalReflections++;
+            refractionDirection = -refractionDirection * glm::angleAxis(glm::radians(180.0f), interiorNormal);
+
+            {
+                refractionRay.ray.org_x = hitPoint.x; refractionRay.ray.org_y = hitPoint.y; refractionRay.ray.org_z = hitPoint.z;
+                refractionRay.ray.dir_x = refractionDirection.x; refractionRay.ray.dir_y = refractionDirection.y; refractionRay.ray.dir_z = refractionDirection.z;
+                refractionRay.ray.tnear = 0.01f;
+                refractionRay.ray.tfar = std::numeric_limits<float>().infinity();
+            }
+
+            rtcIntersect1(m_scene, &context, &refractionRay);
+        }
+        else
+            break;
+    }
+
+    return refractionColour;
 }

@@ -6,7 +6,7 @@
 int main()
 {
     RTCDevice device = rtcNewDevice(NULL);
-    RenderManager renderer(&device, Camera(glm::vec3(0.0f, 0.0f, 3.0f), 45.0f, 0.01f, 1000.0f), true, 100, 4);
+    RenderManager renderer(&device, Camera(glm::vec3(0.0f, 0.0f, 3.0f), 45.0f, 0.01f, 1000.0f), true, 1000, 4);
 
     MaterialProperties mainWallsMat;
     MaterialProperties leftWallMat;
@@ -31,6 +31,9 @@ int main()
 
         sphereMaterial.roughness = 0.2f;
         sphereMaterial.glassiness = 1.0f;
+
+        sphereMaterial.translucency = 0.9f;
+        sphereMaterial.refractiveIndex = 1.2f;
     }
 
     MeshGeometry* mainWalls = new MeshGeometry(mainWallsMat); mainWalls->LoadFromOBJ("../assets/Walls_Main.obj");
