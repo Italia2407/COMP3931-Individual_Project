@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.8)
 
 project("IndividualProject")
+set(CMAKE_CXX_STANDARD 11)
 
 add_subdirectory("dependencies/glfw-3.3.6")
 
