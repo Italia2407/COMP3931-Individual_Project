@@ -139,7 +139,8 @@ glm::vec3 RenderManager::CastRay(glm::vec3 origin, glm::vec3 direction, float ne
                 surfaceNormal = glm::normalize(surfaceNormal);
             }
         }
-        glm::vec3 reflectionDirection = (-glm::normalize(direction)) * glm::angleAxis(glm::radians(180.0f), glm::normalize(surfaceNormal));
+        glm::vec3 reflectionDirection = direction - (2 * glm::dot(glm::normalize(direction), glm::normalize(surfaceNormal)) * surfaceNormal);
+        glm::vec3 incidentDirection = glm::vec3(0.0f, 0.0f, 0.0f);
         {
             glm::vec3 randomDirection = glm::normalize(glm::sphericalRand(1.0f));
             if (randomDirection == -glm::normalize(surfaceNormal) || glm::dot(randomDirection, glm::normalize(surfaceNormal)) < 0.0f)
@@ -150,6 +151,8 @@ glm::vec3 RenderManager::CastRay(glm::vec3 origin, glm::vec3 direction, float ne
 
             glm::vec3 perpendicular = glm::cross(reflectionDirection, randomDirection);
             reflectionDirection = reflectionDirection * glm::angleAxis(angle, glm::normalize(perpendicular));
+
+            incidentDirection = reflectionDirection - (2 * glm::dot(glm::normalize(reflectionDirection), glm::normalize(-surfaceNormal)) * (-surfaceNormal));
         }
 
         double randChoice = glm::linearRand(0.0f, 1.0f);
@@ -184,7 +187,7 @@ glm::vec3 RenderManager::CastRay(glm::vec3 origin, glm::vec3 direction, float ne
                 }
                 else
                 {
-                    glassyColour = CalculateRefractionColour(hitPoint, surfaceNormal, reflectionDirection, surfaceProperties, context, rayDepth);
+                    glassyColour = CalculateRefractionColour(hitPoint, surfaceNormal, incidentDirection, surfaceProperties, context, rayDepth);
                 }
             }
 
@@ -250,12 +253,13 @@ glm::vec3 RenderManager::CalculateReflectionColour(glm::vec3 hitPoint, glm::vec3
     return reflectionColour;
 }
 
-glm::vec3 RenderManager::CalculateRefractionColour(glm::vec3 hitPoint, glm::vec3 surfaceNormal, glm::vec3 reflectionDirection, MaterialProperties surfaceProperties, RTCIntersectContext& context, u_int32_t rayDepth)
+glm::vec3 RenderManager::CalculateRefractionColour(glm::vec3 hitPoint, glm::vec3 surfaceNormal, glm::vec3 incidenceDirection, MaterialProperties surfaceProperties, RTCIntersectContext& context, u_int32_t rayDepth)
 {
-    float incidenceAngle = glm::acos(glm::dot(glm::normalize(surfaceNormal), glm::normalize(reflectionDirection)));
-    float refractionAngle = glm::asin((1/surfaceProperties.refractiveIndex) * glm::sin(incidenceAngle));
-    glm::vec3 perpendicular = glm::normalize(glm::cross(glm::normalize(reflectionDirection), glm::normalize(surfaceNormal)));
-    glm::vec3 refractionDirection = -surfaceNormal * glm::angleAxis(refractionAngle, perpendicular);
+    float incidenceAngle = glm::acos(glm::dot(glm::normalize(surfaceNormal), glm::normalize(-incidenceDirection)));
+    float refractionAngle = glm::asin(glm::sin(incidenceAngle) / surfaceProperties.refractiveIndex);
+
+    glm::vec3 perpendicular = glm::cross(glm::normalize(-surfaceNormal), glm::normalize(incidenceDirection));
+    glm::vec3 refractionDirection = -surfaceNormal * glm::angleAxis(-refractionAngle, glm::normalize(perpendicular)); // Why the Refraction Angle has to be Negated is Unclear
 
     RTCRayHit refractionRay;
     {
@@ -270,45 +274,50 @@ glm::vec3 RenderManager::CalculateRefractionColour(glm::vec3 hitPoint, glm::vec3
     int internalReflections = 0;
     while (true)
     {
-        glm::vec3 interiorNormal;
+        glm::vec3 exitNormal;
         {
-            interiorNormal.x = -refractionRay.hit.Ng_x; interiorNormal.y = -refractionRay.hit.Ng_y; interiorNormal.z = -refractionRay.hit.Ng_z;
+            exitNormal.x = refractionRay.hit.Ng_x; exitNormal.y = refractionRay.hit.Ng_y; exitNormal.z = refractionRay.hit.Ng_z;
         }
+        glm::vec3 newHitPoint;
         {
-            hitPoint.x = refractionRay.ray.org_x + refractionRay.ray.dir_x * refractionRay.ray.tfar;
-            hitPoint.y = refractionRay.ray.org_y + refractionRay.ray.dir_y * refractionRay.ray.tfar;
-            hitPoint.z = refractionRay.ray.org_z + refractionRay.ray.dir_z * refractionRay.ray.tfar;
+            newHitPoint.x = refractionRay.ray.org_x + (refractionRay.ray.dir_x * refractionRay.ray.tfar);
+            newHitPoint.y = refractionRay.ray.org_y + (refractionRay.ray.dir_y * refractionRay.ray.tfar);
+            newHitPoint.z = refractionRay.ray.org_z + (refractionRay.ray.dir_z * refractionRay.ray.tfar);
         }
-        float interiorAngleSin = glm::sin(glm::dot(glm::normalize(-interiorNormal), glm::normalize(refractionDirection)));
+
+        float interiorAngleSin = glm::sin(glm::acos(glm::dot(glm::normalize(exitNormal), glm::normalize(refractionDirection))));
         float exitAngleSin = surfaceProperties.refractiveIndex * interiorAngleSin;
 
-        // Send Ray out to World
+        // Send out Ray to the World
         if (exitAngleSin <= 1.0f)
         {
-            perpendicular = glm::normalize(glm::cross(glm::normalize(refractionDirection), glm::normalize(-interiorNormal)));
-            glm::vec3 exitDirection = -interiorNormal * glm::quat(glm::asin(exitAngleSin), -interiorNormal);
+            glm::vec3 exitPerpendicular = glm::cross(glm::normalize(exitNormal), glm::normalize(refractionDirection));
+            glm::vec3 exitDirection = glm::normalize(exitNormal) * glm::angleAxis(glm::asin(-exitAngleSin), glm::normalize(exitPerpendicular)); // Why the Refraction Angle has to be Negated is Unclear
 
-            refractionColour = CastRay(hitPoint, exitDirection, 0.01f, std::numeric_limits<float>().infinity(), context, rayDepth + internalReflections);
+            refractionColour = CastRay(newHitPoint, exitDirection, 0.01f, std::numeric_limits<float>().infinity(), context, rayDepth + internalReflections);
             break;
         }
-        // Internally Reflect Ray
-        else if (rayDepth + internalReflections < m_maxRayDepth)
+        else if (internalReflections + rayDepth < m_maxRayDepth)
         {
             internalReflections++;
-            refractionDirection = -refractionDirection * glm::angleAxis(glm::radians(180.0f), interiorNormal);
-
+            glm::vec3 internalRelfectionDirection = refractionDirection - (2 * glm::dot(glm::normalize(refractionDirection), glm::normalize(-exitNormal)) * -exitNormal);
             {
-                refractionRay.ray.org_x = hitPoint.x; refractionRay.ray.org_y = hitPoint.y; refractionRay.ray.org_z = hitPoint.z;
-                refractionRay.ray.dir_x = refractionDirection.x; refractionRay.ray.dir_y = refractionDirection.y; refractionRay.ray.dir_z = refractionDirection.z;
+                refractionRay.ray.org_x = newHitPoint.x; refractionRay.ray.org_y = newHitPoint.y; refractionRay.ray.org_z = newHitPoint.z;
+                refractionRay.ray.dir_x = internalRelfectionDirection.x; refractionRay.ray.dir_y = internalRelfectionDirection.y; refractionRay.ray.dir_z = internalRelfectionDirection.z;
                 refractionRay.ray.tnear = 0.01f;
                 refractionRay.ray.tfar = std::numeric_limits<float>().infinity();
             }
 
             rtcIntersect1(m_scene, &context, &refractionRay);
         }
-        else
-            break;
+
+        break;
     }
 
+    {
+        refractionColour.r *= surfaceProperties.albedoColour.r;
+        refractionColour.g *= surfaceProperties.albedoColour.g;
+        refractionColour.b *= surfaceProperties.albedoColour.b;
+    }
     return refractionColour;
 }
