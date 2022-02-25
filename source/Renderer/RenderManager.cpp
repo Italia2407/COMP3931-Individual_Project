@@ -4,6 +4,8 @@
 
 #include <iostream>
 #include <limits>
+#include <chrono>
+
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/random.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -77,6 +79,7 @@ void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, 
 
     std::vector<glm::vec3> pixels = std::vector<glm::vec3>();
 
+    auto start = std::chrono::steady_clock::now();
     for (int y = 0; y < imgHeight; y++)
     {
         for (int x = 0; x < imgWidth; x++)
@@ -96,6 +99,10 @@ void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, 
             pixels.push_back(pixelColour);
         }
     }
+    auto end = std::chrono::steady_clock::now();
+    auto millisecondDuration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+
+    std::cout << "Seconds Elapsed: " << millisecondDuration << "ms" << std::endl;
 
     WriteToPPM(outputFileName, imgWidth, imgHeight, pixels);
 }
