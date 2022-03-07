@@ -6,7 +6,7 @@
 int main()
 {
     RTCDevice device = rtcNewDevice(NULL);
-    RenderManager renderer(&device, Camera(glm::vec3(0.0f, 0.0f, 3.0f), 45.0f, 0.01f, 1000.0f), true, 1000, 4);
+    RenderManager renderer(&device, Camera(glm::vec3(0.0f, 0.0f, 3.0f), 45.0f, 0.01f, 1000.0f), true, 200, 4);
 
     MaterialProperties mainWallsMat = MaterialProperties();
     MaterialProperties leftWallMat = MaterialProperties();
@@ -39,7 +39,7 @@ int main()
 
     MaterialProperties rodMaterial = MaterialProperties();
     {
-        rodMaterial.albedoColour = glm::vec3(1.0f, 0.6f, 1.0f);
+        rodMaterial.albedoColour = glm::vec3(1.0f, 0.6f, 0.6f);
 
         rodMaterial.roughness = 0.3f;
     }
@@ -56,9 +56,9 @@ int main()
     renderer.AttachMeshGeometry(leftWall, glm::vec3(0.0f, 0.0f, 0.0f));
     renderer.AttachMeshGeometry(rightWall, glm::vec3(0.0f, 0.0f, 0.0f));
 
-    renderer.AttachMeshGeometry(sphere, glm::vec3(0.0f, 0.0f, 0.3f));
+    renderer.AttachMeshGeometry(sphere, glm::vec3(0.0f, 0.0f, 0.0f));
 
-    renderer.AttachMeshGeometry(rod, glm::vec3(0.0f, 0.15f, -1.0f));
+    renderer.AttachMeshGeometry(rod, glm::vec3(0.0f, 0.0f, -2.0f));
 
     renderer.AddLight(glm::vec3(0.0f, 3.5f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), 300.0f);
     renderer.RenderScene("MainScene.ppm", 720, 720);

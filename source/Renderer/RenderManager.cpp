@@ -317,8 +317,10 @@ glm::vec3 RenderManager::CalculateRefractionColour(glm::vec3 hitPoint, glm::vec3
 
             rtcIntersect1(m_scene, &context, &refractionRay);
         }
+        else
+            break;
 
-        break;
+        //break;
     }
 
     {
