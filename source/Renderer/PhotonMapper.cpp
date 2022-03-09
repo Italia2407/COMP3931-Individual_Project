@@ -6,26 +6,23 @@
 #include <glm/gtc/random.hpp>
 #include <glm/gtc/quaternion.hpp>
 
-PhotonMapper::PhotonMapper(RenderManager* renderer, int photonNumber, int maxBounces) :
-    m_photons(std::vector<Photon>()), m_renderer(renderer), m_photonNumber(photonNumber), m_maxBounces(maxBounces) {}
+PhotonMapper::PhotonMapper(std::vector<MeshGeometry*>* meshObjects, bool smoothSurfaces, int photonNumber, int maxBounces) :
+    m_photons(std::vector<Photon>()), m_meshObjects(meshObjects), m_smoothSurfaces(smoothSurfaces), m_photonNumber(photonNumber), m_maxBounces(maxBounces) {}
 
-void PhotonMapper::GeneratePhotons()
+void PhotonMapper::GeneratePhotons(PointLight light, RTCScene scene)
 {
-    for (PointLight light : m_renderer->sceneLights())
+    for (int p = 0; p < m_photonNumber; p++)
     {
-        for (int p = 0; p < m_photonNumber; p++)
-        {
-            glm::vec3 emissionDirection = glm::normalize(glm::sphericalRand(1.0f));
+        glm::vec3 emissionDirection = glm::normalize(glm::sphericalRand(1.0f));
 
-            RTCIntersectContext context;
-            rtcInitIntersectContext(&context);
+        RTCIntersectContext context;
+        rtcInitIntersectContext(&context);
 
-            CastPhotonRay(light.colour, light.position, emissionDirection, context, 0);
-        }
+        CastPhotonRay(light.colour, light.position, emissionDirection, scene, context, 0);
     }
 }
 
-void PhotonMapper::CastPhotonRay(glm::vec3 photonColour, glm::vec3 photonOrigin, glm::vec3 photonDirection, RTCIntersectContext& context, int rayDepth)
+void PhotonMapper::CastPhotonRay(glm::vec3 photonColour, glm::vec3 photonOrigin, glm::vec3 photonDirection, RTCScene scene, RTCIntersectContext& context, int rayDepth)
 {
     RTCRayHit rayhit;
     {
@@ -36,11 +33,11 @@ void PhotonMapper::CastPhotonRay(glm::vec3 photonColour, glm::vec3 photonOrigin,
         rayhit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
     }
 
-    rtcIntersect1(m_renderer->scene(), &context, &rayhit);
+    rtcIntersect1(scene, &context, &rayhit);
 
     if (rayhit.hit.geomID != RTC_INVALID_GEOMETRY_ID)
     {
-        MeshGeometry* hitMesh = m_renderer->meshObjects()[rayhit.hit.geomID];
+        MeshGeometry* hitMesh = (*m_meshObjects)[rayhit.hit.geomID];
         MaterialProperties surfaceProperties = hitMesh->properties();
 
         glm::vec3 hitPoint(0.0f, 0.0f, 0.0f);
@@ -54,7 +51,7 @@ void PhotonMapper::CastPhotonRay(glm::vec3 photonColour, glm::vec3 photonOrigin,
             surfaceNormal.x = rayhit.hit.Ng_x;
             surfaceNormal.y = rayhit.hit.Ng_y;
             surfaceNormal.z = rayhit.hit.Ng_z;
-            if (m_renderer->smoothShading())
+            if (m_smoothSurfaces)
             {
                 float a, b, c;
                 hitMesh->CalculateBarycentricOfFace(rayhit.hit.primID, hitPoint, a, b, c);
@@ -96,14 +93,18 @@ void PhotonMapper::CastPhotonRay(glm::vec3 photonColour, glm::vec3 photonOrigin,
             {
                 glm::vec3 bouncePhotonColour;
                 {
-                    bouncePhotonColour.r = (photonColour.r * surfaceProperties.albedoColour.r) / glm::pi<float>();
-                    bouncePhotonColour.g = (photonColour.g * surfaceProperties.albedoColour.g) / glm::pi<float>();
-                    bouncePhotonColour.b = (photonColour.b * surfaceProperties.albedoColour.b) / glm::pi<float>();
+                    // bouncePhotonColour.r = (photonColour.r * surfaceProperties.albedoColour.r) / glm::pi<float>();
+                    // bouncePhotonColour.g = (photonColour.g * surfaceProperties.albedoColour.g) / glm::pi<float>();
+                    // bouncePhotonColour.b = (photonColour.b * surfaceProperties.albedoColour.b) / glm::pi<float>();
+
+                    bouncePhotonColour.r = (photonColour.r * surfaceProperties.albedoColour.r);
+                    bouncePhotonColour.g = (photonColour.g * surfaceProperties.albedoColour.g);
+                    bouncePhotonColour.b = (photonColour.b * surfaceProperties.albedoColour.b);
 
                     bouncePhotonColour *= surfaceProperties.lightReflection;
                 }
 
-                CastPhotonRay(bouncePhotonColour, hitPoint, reflectionDirection, context, rayDepth + 1);
+                CastPhotonRay(bouncePhotonColour, hitPoint, reflectionDirection, scene, context, rayDepth + 1);
             }
         }
         else
@@ -118,7 +119,7 @@ void PhotonMapper::CastPhotonRay(glm::vec3 photonColour, glm::vec3 photonOrigin,
             double randChoice2 = glm::linearRand(0.0f, 1.0f);
             if (randChoice2 > 2.0f)
             {
-                CastPhotonRay(bouncePhotonColour, hitPoint, reflectionDirection, context, rayDepth + 1);
+                CastPhotonRay(bouncePhotonColour, hitPoint, reflectionDirection, scene, context, rayDepth + 1);
             }
             else
             {
@@ -135,7 +136,7 @@ void PhotonMapper::CastPhotonRay(glm::vec3 photonColour, glm::vec3 photonOrigin,
                     refractionRay.ray.tnear = 0.01f;
                     refractionRay.ray.tfar = std::numeric_limits<float>().infinity();
                 }
-                rtcIntersect1(m_renderer->scene(), &context, &refractionRay);
+                rtcIntersect1(scene, &context, &refractionRay);
 
                 glm::vec3 refractionColour(0.0f, 0.0f, 0.0f);
                 int internalReflections = 0;
@@ -161,7 +162,7 @@ void PhotonMapper::CastPhotonRay(glm::vec3 photonColour, glm::vec3 photonOrigin,
                         glm::vec3 exitPerpendicular = glm::cross(glm::normalize(exitNormal), glm::normalize(refractionDirection));
                         glm::vec3 exitDirection = glm::normalize(exitNormal) * glm::angleAxis(glm::asin(-exitAngleSin), glm::normalize(exitPerpendicular)); // Why the Refraction Angle has to be Negated is Unclear
 
-                        CastPhotonRay(bouncePhotonColour, newHitPoint, exitDirection, context, rayDepth + internalReflections);
+                        CastPhotonRay(bouncePhotonColour, newHitPoint, exitDirection, scene, context, rayDepth + internalReflections);
                         break;
                     }
                     else if (internalReflections + rayDepth < m_maxBounces)
@@ -175,7 +176,7 @@ void PhotonMapper::CastPhotonRay(glm::vec3 photonColour, glm::vec3 photonOrigin,
                             refractionRay.ray.tfar = std::numeric_limits<float>().infinity();
                         }
 
-                        rtcIntersect1(m_renderer->scene(), &context, &refractionRay);
+                        rtcIntersect1(scene, &context, &refractionRay);
                     }
                     else
                         break;

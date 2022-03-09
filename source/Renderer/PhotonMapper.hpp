@@ -2,9 +2,9 @@
 
 #include <glm/glm.hpp>
 #include <vector>
-#include <rtcore.h>
+#include <embree3/rtcore.h>
 
-#include "RenderManager.hpp"
+#include "../IOManagers/MeshGeometry.hpp"
 #include "PointLight.hpp"
 
 struct Photon
@@ -18,19 +18,22 @@ struct Photon
 class PhotonMapper
 {
 public:
-    PhotonMapper(RenderManager* renderer, int photonNumber, int maxBounces);
+    PhotonMapper(std::vector<MeshGeometry*>* meshObjects, bool smoothSurfaces, int photonNumber, int maxBounces);
 
 private:
     std::vector<Photon> m_photons;
 
-    RenderManager* m_renderer;
+    std::vector<MeshGeometry*>* m_meshObjects;
 
+    bool m_smoothSurfaces;
     int m_photonNumber;
     int m_maxBounces;
 
 public:
-    void GeneratePhotons();
+    const std::vector<Photon>& photons() { return m_photons; };
+
+    void GeneratePhotons(PointLight light, RTCScene scene);
 
 private:
-    void CastPhotonRay(glm::vec3 photonColour, glm::vec3 photonOrigin, glm::vec3 photonDirection, RTCIntersectContext& context, int rayDepth);
+    void CastPhotonRay(glm::vec3 photonColour, glm::vec3 photonOrigin, glm::vec3 photonDirection, RTCScene scene, RTCIntersectContext& context, int rayDepth);
 };

@@ -8,6 +8,7 @@
 
 #include "../IOManagers/MeshGeometry.hpp"
 #include "PointLight.hpp"
+#include "PhotonMapper.hpp"
 
 struct Camera
 {
@@ -34,6 +35,8 @@ private:
     RTCDevice* m_device;
     RTCScene m_scene;
 
+    PhotonMapper* m_photonMapper;
+
     Camera m_camera;
     bool m_smoothShading;
 
@@ -46,13 +49,6 @@ private:
     std::vector<PointLight> m_sceneLights;
 
 public:
-    const RTCScene& scene() { return m_scene; }
-
-    const bool& smoothShading() { return m_smoothShading; }
-
-    const std::vector<PointLight>& sceneLights() { return m_sceneLights; }
-    const std::vector<MeshGeometry*>& meshObjects() { return m_meshObjects; }
-
     void AttachMeshGeometry(MeshGeometry* meshGeometry, glm::vec3 position);
     void AddLight(glm::vec3 position, glm::vec3 colour, float intensity);
 
