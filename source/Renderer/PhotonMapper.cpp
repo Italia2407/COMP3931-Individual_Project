@@ -1,6 +1,7 @@
 #include "PhotonMapper.hpp"
 
 #include <limits>
+#include <iostream>
 
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/random.hpp>
@@ -77,6 +78,9 @@ void PhotonMapper::CastPhotonRay(glm::vec3 photonColour, glm::vec3 photonOrigin,
             incidentDirection = reflectionDirection - (2 * glm::dot(glm::normalize(reflectionDirection), glm::normalize(-surfaceNormal)) * (-surfaceNormal));
         }
 
+        std::cout << "Photon R: " << photonColour.r << ", Photon G: " << photonColour.g << ", Photon B: " << photonColour.b << std::endl;
+        std::cout << "Depth: " << rayDepth << ", Max: " << m_maxBounces << std::endl;
+
         double randChoice = glm::linearRand(0.0f, 1.0f);
         if (randChoice > surfaceProperties.glassiness || surfaceProperties.glassiness == 0.0f || rayDepth == m_maxBounces)
         {
@@ -91,6 +95,7 @@ void PhotonMapper::CastPhotonRay(glm::vec3 photonColour, glm::vec3 photonOrigin,
 
             if (rayDepth < m_maxBounces)
             {
+                std::cout << "Called Here" << std::endl;
                 glm::vec3 bouncePhotonColour;
                 {
                     // bouncePhotonColour.r = (photonColour.r * surfaceProperties.albedoColour.r) / glm::pi<float>();
@@ -117,7 +122,7 @@ void PhotonMapper::CastPhotonRay(glm::vec3 photonColour, glm::vec3 photonOrigin,
             }
             
             double randChoice2 = glm::linearRand(0.0f, 1.0f);
-            if (randChoice2 > 2.0f)
+            if (randChoice2 > surfaceProperties.translucency || surfaceProperties.translucency == 0.0f)
             {
                 CastPhotonRay(bouncePhotonColour, hitPoint, reflectionDirection, scene, context, rayDepth + 1);
             }

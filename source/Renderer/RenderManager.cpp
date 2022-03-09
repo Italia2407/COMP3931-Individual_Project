@@ -39,7 +39,7 @@ RenderManager::RenderManager(RTCDevice* device, Camera camera, bool smoothShadin
     if (m_device != nullptr)
         m_scene = rtcNewScene(*device);
 
-    m_photonMapper = new PhotonMapper(&m_meshObjects, m_smoothShading, 10000, 4);
+    m_photonMapper = new PhotonMapper(&m_meshObjects, m_smoothShading, 1, 4);
 }
 
 void RenderManager::AttachMeshGeometry(MeshGeometry* meshGeometry, glm::vec3 position)
