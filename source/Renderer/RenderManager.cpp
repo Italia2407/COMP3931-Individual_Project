@@ -39,7 +39,7 @@ RenderManager::RenderManager(RTCDevice* device, Camera camera, bool smoothShadin
     if (m_device != nullptr)
         m_scene = rtcNewScene(*device);
 
-    m_photonMapper = new PhotonMapper(&m_meshObjects, m_smoothShading, 1, 4);
+    m_photonMapper = new PhotonMapper(&m_meshObjects, m_smoothShading, 100000, 4);
 }
 
 void RenderManager::AttachMeshGeometry(MeshGeometry* meshGeometry, glm::vec3 position)
@@ -233,6 +233,8 @@ glm::vec3 RenderManager::CalculateDiffuseColour(glm::vec3 hitPoint, glm::vec3 su
             totalColour.b += (facingRatio * p.colour.b) / glm::pi<float>();
         }
     }
+
+    return totalColour;
 }
 
 // glm::vec3 RenderManager::CalculateDiffuseColour(glm::vec3 hitPoint, glm::vec3 surfaceNormal, glm::vec3 reflectionDirection, PointLight light, MaterialProperties surfaceProperties, RTCIntersectContext& context)

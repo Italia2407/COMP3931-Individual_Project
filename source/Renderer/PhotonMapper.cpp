@@ -36,6 +36,9 @@ void PhotonMapper::CastPhotonRay(glm::vec3 photonColour, glm::vec3 photonOrigin,
 
     rtcIntersect1(scene, &context, &rayhit);
 
+    //std::cout << "OriginX: " << photonOrigin.x << ", OriginY: " << photonOrigin.y << ", OriginZ: " << photonOrigin.z << std::endl;
+    //std::cout << "DirectX: " << photonDirection.x << ", DirectY: " << photonDirection.y << ", DirectZ: " << photonDirection.z << std::endl;
+    //std::cout << "Hit Geometry: " << rayhit.hit.geomID << std::endl;
     if (rayhit.hit.geomID != RTC_INVALID_GEOMETRY_ID)
     {
         MeshGeometry* hitMesh = (*m_meshObjects)[rayhit.hit.geomID];
@@ -68,6 +71,7 @@ void PhotonMapper::CastPhotonRay(glm::vec3 photonColour, glm::vec3 photonOrigin,
             glm::vec3 randomDirection = glm::normalize(glm::sphericalRand(1.0f));
             if (randomDirection == -glm::normalize(surfaceNormal) || glm::dot(randomDirection, glm::normalize(surfaceNormal)) < 0.0f)
                 randomDirection = -randomDirection;
+                randomDirection = -randomDirection; // Somehow surface Normal is Inverted?
 
             float angle = glm::acos(glm::dot(reflectionDirection, randomDirection));
             angle *= surfaceProperties.roughness;
@@ -78,8 +82,8 @@ void PhotonMapper::CastPhotonRay(glm::vec3 photonColour, glm::vec3 photonOrigin,
             incidentDirection = reflectionDirection - (2 * glm::dot(glm::normalize(reflectionDirection), glm::normalize(-surfaceNormal)) * (-surfaceNormal));
         }
 
-        std::cout << "Photon R: " << photonColour.r << ", Photon G: " << photonColour.g << ", Photon B: " << photonColour.b << std::endl;
-        std::cout << "Depth: " << rayDepth << ", Max: " << m_maxBounces << std::endl;
+        //std::cout << "Photon R: " << photonColour.r << ", Photon G: " << photonColour.g << ", Photon B: " << photonColour.b << std::endl;
+        //std::cout << "Depth: " << rayDepth << ", Max: " << m_maxBounces << std::endl;
 
         double randChoice = glm::linearRand(0.0f, 1.0f);
         if (randChoice > surfaceProperties.glassiness || surfaceProperties.glassiness == 0.0f || rayDepth == m_maxBounces)
@@ -95,7 +99,7 @@ void PhotonMapper::CastPhotonRay(glm::vec3 photonColour, glm::vec3 photonOrigin,
 
             if (rayDepth < m_maxBounces)
             {
-                std::cout << "Called Here" << std::endl;
+                //std::cout << "Called Here" << std::endl;
                 glm::vec3 bouncePhotonColour;
                 {
                     // bouncePhotonColour.r = (photonColour.r * surfaceProperties.albedoColour.r) / glm::pi<float>();
