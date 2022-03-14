@@ -190,6 +190,16 @@ bool PhotonMapper::CastPhotonRay(glm::vec3 photonColour, glm::vec3 photonOrigin,
                     glm::vec3 exitNormal;
                     {
                         exitNormal.x = refractionRay.hit.Ng_x; exitNormal.y = refractionRay.hit.Ng_y; exitNormal.z = refractionRay.hit.Ng_z;
+                        if (m_smoothSurfaces)
+                        {
+                            MeshGeometry* hitMesh = (*m_meshObjects)[refractionRay.hit.geomID];
+                            float a, b, c;
+                            hitMesh->CalculateBarycentricOfFace(refractionRay.hit.primID, hitPoint, a, b, c);
+
+                            glm::uvec3 hitFace = hitMesh->faceNIDs()[refractionRay.hit.primID];
+                            exitNormal = (glm::normalize(hitMesh->normals()[hitFace.x]) * a) + (glm::normalize(hitMesh->normals()[hitFace.y]) * b) + (glm::normalize(hitMesh->normals()[hitFace.z]) * c);
+                            exitNormal = glm::normalize(exitNormal);
+                        }
                     }
                     glm::vec3 newHitPoint;
                     {

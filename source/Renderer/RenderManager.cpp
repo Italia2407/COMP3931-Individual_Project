@@ -150,6 +150,7 @@ glm::vec3 RenderManager::CastRay(glm::vec3 origin, glm::vec3 direction, float ne
             surfaceNormal.x = rayhit.hit.Ng_x;
             surfaceNormal.y = rayhit.hit.Ng_y;
             surfaceNormal.z = rayhit.hit.Ng_z;
+            //std::cout << "NormX: " << surfaceNormal.x << ", NormY: " << surfaceNormal.y << ", NormZ: " << surfaceNormal.z << std::endl;
             if (m_smoothShading)
             {
                 float a, b, c;
@@ -159,6 +160,8 @@ glm::vec3 RenderManager::CastRay(glm::vec3 origin, glm::vec3 direction, float ne
                 surfaceNormal = (glm::normalize(hitMesh->normals()[hitFace.x]) * a) + (glm::normalize(hitMesh->normals()[hitFace.y]) * b) + (glm::normalize(hitMesh->normals()[hitFace.z]) * c);
                 surfaceNormal = glm::normalize(surfaceNormal);
             }
+            //std::cout << "SmoothX: " << surfaceNormal.x << ", SmoothY: " << surfaceNormal.y << ", SmoothZ: " << surfaceNormal.z << std::endl;
+            //std::cout << std::endl;
         }
         glm::vec3 reflectionDirection = direction - (2 * glm::dot(glm::normalize(direction), glm::normalize(surfaceNormal)) * surfaceNormal);
         glm::vec3 incidentDirection = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -353,6 +356,16 @@ glm::vec3 RenderManager::CalculateRefractionColour(glm::vec3 hitPoint, glm::vec3
         glm::vec3 exitNormal;
         {
             exitNormal.x = refractionRay.hit.Ng_x; exitNormal.y = refractionRay.hit.Ng_y; exitNormal.z = refractionRay.hit.Ng_z;
+            if (m_smoothShading)
+            {
+                MeshGeometry* hitMesh = m_meshObjects[refractionRay.hit.geomID];
+                float a, b, c;
+                hitMesh->CalculateBarycentricOfFace(refractionRay.hit.primID, hitPoint, a, b, c);
+
+                glm::uvec3 hitFace = hitMesh->faceNIDs()[refractionRay.hit.primID];
+                exitNormal = (glm::normalize(hitMesh->normals()[hitFace.x]) * a) + (glm::normalize(hitMesh->normals()[hitFace.y]) * b) + (glm::normalize(hitMesh->normals()[hitFace.z]) * c);
+                exitNormal = glm::normalize(exitNormal);
+            }
         }
         glm::vec3 newHitPoint;
         {
