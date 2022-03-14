@@ -3,10 +3,16 @@
 #include "IOManagers/MeshGeometry.hpp"
 #include "IOManagers/PPMWriter.hpp"
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
 int main()
 {
+    srand(time(NULL)); // Initialise RNG
+
     RTCDevice device = rtcNewDevice(NULL);
-    RenderManager renderer(&device, Camera(glm::vec3(0.0f, 0.0f, 3.0f), 45.0f, 0.01f, 1000.0f), true, 200, 4);
+    RenderManager renderer(&device, Camera(glm::vec3(0.0f, 0.0f, 3.0f), 45.0f, 0.01f, 1000.0f), true, 400, 4);
 
     MaterialProperties mainWallsMat = MaterialProperties();
     MaterialProperties leftWallMat = MaterialProperties();
@@ -20,21 +26,21 @@ int main()
 
         mainWallsMat.glossiness = leftWallMat.glossiness = rightWallMat.glossiness = 0.0f;
         mainWallsMat.glossyFalloff = leftWallMat.glossyFalloff = rightWallMat.glossyFalloff = 0.0f;
-        mainWallsMat.lightReflection = leftWallMat.lightReflection = rightWallMat.lightReflection = 0.8f;
+        mainWallsMat.lightReflection = leftWallMat.lightReflection = rightWallMat.lightReflection = 0.75f;
 
         mainWallsMat.glassiness = leftWallMat.glassiness = rightWallMat.glassiness = 0.0f;
     }
 
-    MaterialProperties sphereMaterial = MaterialProperties();
+    MaterialProperties lensMaterial = MaterialProperties();
     {
-        sphereMaterial.albedoColour = glm::vec3(1.0f, 1.0f, 1.0f);
+        lensMaterial.albedoColour = glm::vec3(0.97f, 1.0f, 0.95f);
 
-        sphereMaterial.roughness = 0.0f;
-        sphereMaterial.glassiness = 1.0f;
+        lensMaterial.roughness = 0.0f;
+        lensMaterial.glassiness = 1.0f;
 
-        sphereMaterial.translucency = 0.9f;
+        lensMaterial.translucency = 0.9f;
 
-        sphereMaterial.refractiveIndex = 1.52f;
+        lensMaterial.refractiveIndex = 1.52f;
     }
 
     MaterialProperties rodMaterial = MaterialProperties();
@@ -48,7 +54,7 @@ int main()
     MeshGeometry* leftWall = new MeshGeometry(leftWallMat); leftWall->LoadFromOBJ("../assets/Walls_Left.obj");
     MeshGeometry* rightWall = new MeshGeometry(rightWallMat); rightWall->LoadFromOBJ("../assets/Walls_Right.obj");
 
-    MeshGeometry* sphere = new MeshGeometry(sphereMaterial); sphere->LoadFromOBJ("../assets/Sphere.obj");
+    MeshGeometry* lens = new MeshGeometry(lensMaterial); lens->LoadFromOBJ("../assets/Lens.obj");
 
     MeshGeometry* rod = new MeshGeometry(rodMaterial); rod->LoadFromOBJ("../assets/Rod.obj");
 
@@ -56,10 +62,10 @@ int main()
     renderer.AttachMeshGeometry(leftWall, glm::vec3(0.0f, 0.0f, 0.0f));
     renderer.AttachMeshGeometry(rightWall, glm::vec3(0.0f, 0.0f, 0.0f));
 
-    renderer.AttachMeshGeometry(sphere, glm::vec3(0.0f, 0.0f, 0.0f));
+    renderer.AttachMeshGeometry(lens, glm::vec3(0.0f, 0.0f, -1.0f));
 
-    renderer.AttachMeshGeometry(rod, glm::vec3(0.0f, 0.0f, -3.0f));
+    renderer.AttachMeshGeometry(rod, glm::vec3(0.0f, 0.0f, -2.5f));
 
-    renderer.AddLight(glm::vec3(0.0f, 3.5f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), 300.0f);
+    renderer.AddLight(glm::vec3(0.0f, 3.5f, -1.0f), glm::vec3(1.0f, 1.0f, 1.0f), 600.0f);
     renderer.RenderScene("MainScene.ppm", 720, 720);
 }

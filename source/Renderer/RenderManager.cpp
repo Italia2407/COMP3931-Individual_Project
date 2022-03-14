@@ -5,6 +5,7 @@
 #include <iostream>
 #include <limits>
 #include <chrono>
+#include "../../cdalitz-kdtree-cpp/kdtree.hpp"
 
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/random.hpp>
@@ -39,7 +40,7 @@ RenderManager::RenderManager(RTCDevice* device, Camera camera, bool smoothShadin
     if (m_device != nullptr)
         m_scene = rtcNewScene(*device);
 
-    m_photonMapper = new PhotonMapper(&m_meshObjects, m_smoothShading, 100000, 4);
+    m_photonMapper = new PhotonMapper(&m_meshObjects, m_smoothShading, 100000, 8);
 }
 
 void RenderManager::AttachMeshGeometry(MeshGeometry* meshGeometry, glm::vec3 position)
@@ -99,6 +100,7 @@ void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, 
             glm::vec3 pixelColour(0.0f, 0.0f, 0.0f);
             for (int i = 0; i < m_multisamplingIterations; i++)
             {
+                //std::cout << "Pixel (" << x << ", " << y << "): Iteration #" << i << std::endl;
                 RTCIntersectContext context;
                 rtcInitIntersectContext(&context);
 
@@ -219,66 +221,101 @@ glm::vec3 RenderManager::CastRay(glm::vec3 origin, glm::vec3 direction, float ne
 
 glm::vec3 RenderManager::CalculateDiffuseColour(glm::vec3 hitPoint, glm::vec3 surfaceNormal, glm::vec3 reflectionDirection, PointLight light, MaterialProperties surfaceProperties, RTCIntersectContext& context)
 {
-    glm::vec3 totalColour(0.0f, 0.0f, 0.0f);
-    for (Photon p : m_photonMapper->photons())
+    /*
+    glm::vec3 causticsColour(0.0f, 0.0f, 0.0f);
+    auto photons = m_photonMapper->GetClosestPhotons(hitPoint, 0.05f);
+    for (auto p : photons)
     {
-        if (glm::distance(hitPoint, p.position) <= 0.05f)
+        glm::vec3 photonPos(p.point[0], p.point[1], p.point[2]);
+        float distance = glm::distance(photonPos, hitPoint);
+        PhotonData* data = (PhotonData*)p.data;
+        
+        float facingRatio = glm::dot(glm::normalize(data->direction), glm::normalize(surfaceNormal));
+        if (facingRatio <= 0.0f)
+            continue;
+
+        float photonWeight = 1 - (distance / 0.05f);
+        if (photonWeight < 0.0f)
+            photonWeight = 0.0f;
+
+        glm::vec3 pointColour(0.0f, 0.0f, 0.0f);
         {
-            float facingRatio = glm::dot(glm::normalize(p.direction), glm::normalize(surfaceNormal));
-            if (facingRatio <= 0.0f)
-                continue;
-
-            totalColour.r += (facingRatio * p.colour.r) / glm::pi<float>();
-            totalColour.g += (facingRatio * p.colour.g) / glm::pi<float>();
-            totalColour.b += (facingRatio * p.colour.b) / glm::pi<float>();
+            pointColour.r = (surfaceProperties.albedoColour.r * facingRatio * data->colour.r) / glm::pi<float>();
+            pointColour.g = (surfaceProperties.albedoColour.g * facingRatio * data->colour.g) / glm::pi<float>();
+            pointColour.b = (surfaceProperties.albedoColour.b * facingRatio * data->colour.b) / glm::pi<float>();
         }
-    }
+        pointColour *= photonWeight;
 
-    return totalColour;
+        causticsColour += pointColour;
+    }
+    {
+        causticsColour.r = (causticsColour.r * 3) / (glm::pi<float>() * glm::pow(0.05f, 2.0f));
+        causticsColour.g = (causticsColour.g * 3) / (glm::pi<float>() * glm::pow(0.05f, 2.0f));
+        causticsColour.b = (causticsColour.b * 3) / (glm::pi<float>() * glm::pow(0.05f, 2.0f));
+    }*/
+
+    glm::vec3 shadowColour = CalculateShadowColour(hitPoint, surfaceNormal, reflectionDirection, light, surfaceProperties, context);
+
+    // for (Photon p : m_photonMapper->photons())
+    // {
+    //     if (glm::distance(hitPoint, p.position) <= 0.1f)
+    //     {
+    //         float facingRatio = glm::dot(glm::normalize(p.direction), glm::normalize(surfaceNormal));
+    //         if (facingRatio <= 0.0f)
+    //             continue;
+
+    //         photonColour.r += (facingRatio * p.colour.r) / glm::pi<float>();
+    //         photonColour.g += (facingRatio * p.colour.g) / glm::pi<float>();
+    //         photonColour.b += (facingRatio * p.colour.b) / glm::pi<float>();
+    //     }
+    // }
+
+    //return causticsColour + shadowColour;
+    return shadowColour;
 }
 
-// glm::vec3 RenderManager::CalculateDiffuseColour(glm::vec3 hitPoint, glm::vec3 surfaceNormal, glm::vec3 reflectionDirection, PointLight light, MaterialProperties surfaceProperties, RTCIntersectContext& context)
-// {
-//     glm::vec3 lightDirection = light.GetDirectionFromPoint(hitPoint);
+glm::vec3 RenderManager::CalculateShadowColour(glm::vec3 hitPoint, glm::vec3 surfaceNormal, glm::vec3 reflectionDirection, PointLight light, MaterialProperties surfaceProperties, RTCIntersectContext& context)
+{
+    glm::vec3 lightDirection = light.GetDirectionFromPoint(hitPoint);
 
-//     float facingRatio = glm::dot(glm::normalize(lightDirection), glm::normalize(surfaceNormal));
-//     if (facingRatio <= 0.0f)
-//         return glm::vec3(0.0f, 0.0f, 0.0f);
+    float facingRatio = glm::dot(glm::normalize(lightDirection), glm::normalize(surfaceNormal));
+    if (facingRatio <= 0.0f)
+        return glm::vec3(0.0f, 0.0f, 0.0f);
 
-//     RTCRay shadowray;
-//     {
-//         shadowray.org_x = hitPoint.x; shadowray.org_y = hitPoint.y; shadowray.org_z = hitPoint.z;
-//         shadowray.dir_x = lightDirection.x; shadowray.dir_y = lightDirection.y; shadowray.dir_z = lightDirection.z;
-//         shadowray.tnear = 0.01f;
-//         shadowray.tfar = 1.01f;
-//     }
+    RTCRay shadowray;
+    {
+        shadowray.org_x = hitPoint.x; shadowray.org_y = hitPoint.y; shadowray.org_z = hitPoint.z;
+        shadowray.dir_x = lightDirection.x; shadowray.dir_y = lightDirection.y; shadowray.dir_z = lightDirection.z;
+        shadowray.tnear = 0.01f;
+        shadowray.tfar = 1.01f;
+    }
 
-//     rtcOccluded1(m_scene, &context, &shadowray);
-//     if (shadowray.tfar >= 1.0f)
-//     {
-//         float lightDistance = light.GetDistanceFromPoint(hitPoint);
-//         float lightDim = 4 * glm::pi<float>() * glm::pow(lightDistance, 2.0f);
-//         glm::vec3 lightColour = (facingRatio * light.colour * light.intensity) / lightDim;
+    rtcOccluded1(m_scene, &context, &shadowray);
+    if (shadowray.tfar >= 1.0f)
+    {
+        float lightDistance = light.GetDistanceFromPoint(hitPoint);
+        float lightDim = 4 * glm::pi<float>() * glm::pow(lightDistance, 2.0f);
+        glm::vec3 lightColour = (facingRatio * light.colour * light.intensity) / lightDim;
 
-//         float viewRatio = glm::dot(glm::normalize(reflectionDirection), glm::normalize(lightDirection));
-//         viewRatio = glm::clamp(viewRatio, 0.0f, 1.0f);
+        float viewRatio = glm::dot(glm::normalize(reflectionDirection), glm::normalize(lightDirection));
+        viewRatio = glm::clamp(viewRatio, 0.0f, 1.0f);
 
-//         glm::vec3 diffuseColour(0.0f, 0.0f, 0.0f); 
-//         {
-//             diffuseColour.r = surfaceProperties.albedoColour.r * lightColour.r;
-//             diffuseColour.g = surfaceProperties.albedoColour.g * lightColour.g;
-//             diffuseColour.b = surfaceProperties.albedoColour.b * lightColour.b;
+        glm::vec3 diffuseColour(0.0f, 0.0f, 0.0f); 
+        {
+            diffuseColour.r = surfaceProperties.albedoColour.r * lightColour.r;
+            diffuseColour.g = surfaceProperties.albedoColour.g * lightColour.g;
+            diffuseColour.b = surfaceProperties.albedoColour.b * lightColour.b;
 
-//             diffuseColour /= glm::pi<float>();
-//         }
+            diffuseColour /= glm::pi<float>();
+        }
 
-//         glm::vec3 glossColour = lightColour * glm::pow(viewRatio, surfaceProperties.glossyFalloff) * surfaceProperties.glossiness;
+        glm::vec3 glossColour = lightColour * glm::pow(viewRatio, surfaceProperties.glossyFalloff) * surfaceProperties.glossiness;
 
-//         return diffuseColour + glossColour;
-//     }
+        return diffuseColour + glossColour;
+    }
 
-//     return glm::vec3(0.0f, 0.0f, 0.0f);
-// }
+    return glm::vec3(0.0f, 0.0f, 0.0f);
+}
 
 glm::vec3 RenderManager::CalculateReflectionColour(glm::vec3 hitPoint, glm::vec3 reflectionDirection, MaterialProperties surfaceProperties, RTCIntersectContext& context, u_int32_t rayDepth)
 {
