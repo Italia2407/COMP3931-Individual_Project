@@ -186,17 +186,17 @@ glm::vec3 RenderManager::CastRay(glm::vec3 origin, glm::vec3 direction, float ne
             glm::vec3 diffuseColour(0.0f, 0.0f, 0.0f);
             for (int i = 0; i < m_sceneLights.size(); i++)
             {
-                diffuseColour += CalculateDiffuseColour(hitPoint, surfaceNormal, reflectionDirection, m_sceneLights[i], surfaceProperties, context);
+                //diffuseColour += CalculateDiffuseColour(hitPoint, surfaceNormal, reflectionDirection, m_sceneLights[i], surfaceProperties, context);
                 diffuseColour += CalculateCausticColour(hitPoint, surfaceNormal, reflectionDirection, m_sceneLights[i], surfaceProperties, context);
             }
 
-            glm::vec3 ambientColour(0.0f, 0.0f, 0.0f);
-            if (rayDepth < m_maxRayDepth)
-            {
-                ambientColour = CastRay(hitPoint, reflectionDirection, 0.01f, std::numeric_limits<float>().infinity(), context, rayDepth + 1);
-                ambientColour *= surfaceProperties.lightReflection;
-            }
-            diffuseColour += ambientColour;
+            // glm::vec3 ambientColour(0.0f, 0.0f, 0.0f);
+            // if (rayDepth < m_maxRayDepth)
+            // {
+            //     ambientColour = CastRay(hitPoint, reflectionDirection, 0.01f, std::numeric_limits<float>().infinity(), context, rayDepth + 1);
+            //     ambientColour *= surfaceProperties.lightReflection;
+            // }
+            // diffuseColour += ambientColour;
 
             return diffuseColour;
         }
@@ -225,8 +225,8 @@ glm::vec3 RenderManager::CastRay(glm::vec3 origin, glm::vec3 direction, float ne
 
 glm::vec3 RenderManager::CalculateCausticColour(glm::vec3 hitPoint, glm::vec3 surfaceNormal, glm::vec3 reflectionDirection, PointLight light, MaterialProperties surfaceProperties, RTCIntersectContext& context)
 {
-    float photonRangeRadius = 0.1f;
-    float kValue = 1.0f;
+    float photonRangeRadius = 0.05f;
+    float kValue = 0.8f;
 
     glm::vec3 causticsColour(0.0f, 0.0f, 0.0f);
     auto photons = m_photonMapper->GetClosestPhotons(hitPoint, photonRangeRadius);
@@ -250,9 +250,8 @@ glm::vec3 RenderManager::CalculateCausticColour(glm::vec3 hitPoint, glm::vec3 su
             pointColour.g = (surfaceProperties.albedoColour.g * facingRatio * data->colour.g) / glm::pi<float>();
             pointColour.b = (surfaceProperties.albedoColour.b * facingRatio * data->colour.b) / glm::pi<float>();
         }
-        pointColour *= photonWeight;
 
-        causticsColour += pointColour;
+        causticsColour += pointColour * photonWeight;
     }
 
     {
