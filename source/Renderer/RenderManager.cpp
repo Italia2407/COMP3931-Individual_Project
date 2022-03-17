@@ -40,7 +40,7 @@ RenderManager::RenderManager(RTCDevice* device, Camera camera, bool smoothShadin
     if (m_device != nullptr)
         m_scene = rtcNewScene(*device);
 
-    m_photonMapper = new PhotonMapper(&m_meshObjects, m_smoothShading, 100000, 8);
+    m_photonMapper = new PhotonMapper(&m_meshObjects, true, 1000000, 8);
 }
 
 void RenderManager::AttachMeshGeometry(MeshGeometry* meshGeometry, glm::vec3 position)
@@ -187,6 +187,7 @@ glm::vec3 RenderManager::CastRay(glm::vec3 origin, glm::vec3 direction, float ne
             for (int i = 0; i < m_sceneLights.size(); i++)
             {
                 diffuseColour += CalculateDiffuseColour(hitPoint, surfaceNormal, reflectionDirection, m_sceneLights[i], surfaceProperties, context);
+                diffuseColour += CalculateCausticColour(hitPoint, surfaceNormal, reflectionDirection, m_sceneLights[i], surfaceProperties, context);
             }
 
             glm::vec3 ambientColour(0.0f, 0.0f, 0.0f);
@@ -222,11 +223,13 @@ glm::vec3 RenderManager::CastRay(glm::vec3 origin, glm::vec3 direction, float ne
     return glm::vec3(0.0f, 0.0f, 0.0f);
 }
 
-glm::vec3 RenderManager::CalculateDiffuseColour(glm::vec3 hitPoint, glm::vec3 surfaceNormal, glm::vec3 reflectionDirection, PointLight light, MaterialProperties surfaceProperties, RTCIntersectContext& context)
+glm::vec3 RenderManager::CalculateCausticColour(glm::vec3 hitPoint, glm::vec3 surfaceNormal, glm::vec3 reflectionDirection, PointLight light, MaterialProperties surfaceProperties, RTCIntersectContext& context)
 {
-    /*
+    float photonRangeRadius = 0.1f;
+    float kValue = 1.0f;
+
     glm::vec3 causticsColour(0.0f, 0.0f, 0.0f);
-    auto photons = m_photonMapper->GetClosestPhotons(hitPoint, 0.05f);
+    auto photons = m_photonMapper->GetClosestPhotons(hitPoint, photonRangeRadius);
     for (auto p : photons)
     {
         glm::vec3 photonPos(p.point[0], p.point[1], p.point[2]);
@@ -237,7 +240,7 @@ glm::vec3 RenderManager::CalculateDiffuseColour(glm::vec3 hitPoint, glm::vec3 su
         if (facingRatio <= 0.0f)
             continue;
 
-        float photonWeight = 1 - (distance / 0.05f);
+        float photonWeight = 1 - (distance / (kValue * photonRangeRadius));
         if (photonWeight < 0.0f)
             photonWeight = 0.0f;
 
@@ -251,33 +254,17 @@ glm::vec3 RenderManager::CalculateDiffuseColour(glm::vec3 hitPoint, glm::vec3 su
 
         causticsColour += pointColour;
     }
+
     {
-        causticsColour.r = (causticsColour.r * 3) / (glm::pi<float>() * glm::pow(0.05f, 2.0f));
-        causticsColour.g = (causticsColour.g * 3) / (glm::pi<float>() * glm::pow(0.05f, 2.0f));
-        causticsColour.b = (causticsColour.b * 3) / (glm::pi<float>() * glm::pow(0.05f, 2.0f));
-    }*/
+        causticsColour.r = (causticsColour.r * 3 * kValue) / (glm::pi<float>() * glm::pow(photonRangeRadius, 2.0f));
+        causticsColour.g = (causticsColour.g * 3 * kValue) / (glm::pi<float>() * glm::pow(photonRangeRadius, 2.0f));
+        causticsColour.b = (causticsColour.b * 3 * kValue) / (glm::pi<float>() * glm::pow(photonRangeRadius, 2.0f));
+    }
 
-    glm::vec3 shadowColour = CalculateShadowColour(hitPoint, surfaceNormal, reflectionDirection, light, surfaceProperties, context);
-
-    // for (Photon p : m_photonMapper->photons())
-    // {
-    //     if (glm::distance(hitPoint, p.position) <= 0.1f)
-    //     {
-    //         float facingRatio = glm::dot(glm::normalize(p.direction), glm::normalize(surfaceNormal));
-    //         if (facingRatio <= 0.0f)
-    //             continue;
-
-    //         photonColour.r += (facingRatio * p.colour.r) / glm::pi<float>();
-    //         photonColour.g += (facingRatio * p.colour.g) / glm::pi<float>();
-    //         photonColour.b += (facingRatio * p.colour.b) / glm::pi<float>();
-    //     }
-    // }
-
-    //return causticsColour + shadowColour;
-    return shadowColour;
+    return causticsColour;
 }
 
-glm::vec3 RenderManager::CalculateShadowColour(glm::vec3 hitPoint, glm::vec3 surfaceNormal, glm::vec3 reflectionDirection, PointLight light, MaterialProperties surfaceProperties, RTCIntersectContext& context)
+glm::vec3 RenderManager::CalculateDiffuseColour(glm::vec3 hitPoint, glm::vec3 surfaceNormal, glm::vec3 reflectionDirection, PointLight light, MaterialProperties surfaceProperties, RTCIntersectContext& context)
 {
     glm::vec3 lightDirection = light.GetDirectionFromPoint(hitPoint);
 

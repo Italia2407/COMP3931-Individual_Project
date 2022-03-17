@@ -12,7 +12,7 @@ int main()
     srand(time(NULL)); // Initialise RNG
 
     RTCDevice device = rtcNewDevice(NULL);
-    RenderManager renderer(&device, Camera(glm::vec3(0.0f, 0.0f, 3.0f), 45.0f, 0.01f, 1000.0f), false, 400, 4);
+    RenderManager renderer(&device, Camera(glm::vec3(0.0f, 0.0f, 3.0f), 45.0f, 0.01f, 1000.0f), false, 4, 4);
 
     MaterialProperties mainWallsMat = MaterialProperties();
     MaterialProperties leftWallMat = MaterialProperties();
@@ -35,10 +35,10 @@ int main()
     {
         lensMaterial.albedoColour = glm::vec3(0.97f, 1.0f, 0.95f);
 
-        lensMaterial.roughness = 0.0f;
+        lensMaterial.roughness = 0.05f;
         lensMaterial.glassiness = 1.0f;
 
-        lensMaterial.translucency = 0.9f;
+        lensMaterial.translucency = 1.0f;
 
         lensMaterial.refractiveIndex = 1.52f;
     }
@@ -62,10 +62,10 @@ int main()
     renderer.AttachMeshGeometry(leftWall, glm::vec3(0.0f, 0.0f, 0.0f));
     renderer.AttachMeshGeometry(rightWall, glm::vec3(0.0f, 0.0f, 0.0f));
 
-    renderer.AttachMeshGeometry(lens, glm::vec3(0.0f, 0.0f, -1.0f));
+    renderer.AttachMeshGeometry(lens, glm::vec3(0.0f, 0.0f, -2.0f));
 
-    renderer.AttachMeshGeometry(rod, glm::vec3(0.0f, 0.0f, -2.5f));
+    renderer.AttachMeshGeometry(rod, glm::vec3(0.0f, 1.0f, -2.5f));
 
-    renderer.AddLight(glm::vec3(0.0f, 3.5f, -1.0f), glm::vec3(1.0f, 1.0f, 1.0f), 600.0f);
+    renderer.AddLight(glm::vec3(0.0f, 3.5f, -2.0f), glm::vec3(1.0f, 1.0f, 1.0f), 600.0f);
     renderer.RenderScene("MainScene.ppm", 720, 720);
 }

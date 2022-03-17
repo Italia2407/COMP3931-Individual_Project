@@ -23,7 +23,7 @@ struct Photon
 class PhotonMapper
 {
 public:
-    PhotonMapper(std::vector<MeshGeometry*>* meshObjects, bool smoothSurfaces, int photonNumber, int maxBounces);
+    PhotonMapper(std::vector<MeshGeometry*>* meshObjects, bool caustics, int photonNumber, int maxBounces);
 
 private:
     Kdtree::KdTree* m_photonTree;
@@ -31,7 +31,7 @@ private:
 
     std::vector<MeshGeometry*>* m_meshObjects;
 
-    bool m_smoothSurfaces;
+    bool m_caustics;
     int m_photonNumber;
     int m_maxBounces;
 
