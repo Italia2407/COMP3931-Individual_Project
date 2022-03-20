@@ -40,7 +40,7 @@ RenderManager::RenderManager(RTCDevice* device, Camera camera, bool smoothShadin
     if (m_device != nullptr)
         m_scene = rtcNewScene(*device);
 
-    m_photonMapper = new PhotonMapper(&m_meshObjects, true, 1000000, 8);
+    m_photonMapper = new PhotonMapper(&m_meshObjects, true, 100000, 8);
 }
 
 void RenderManager::AttachMeshGeometry(MeshGeometry* meshGeometry, glm::vec3 position)
@@ -229,7 +229,8 @@ glm::vec3 RenderManager::CalculateCausticColour(glm::vec3 hitPoint, glm::vec3 su
     float kValue = 0.8f;
 
     glm::vec3 causticsColour(0.0f, 0.0f, 0.0f);
-    auto photons = m_photonMapper->GetClosestPhotons(hitPoint, photonRangeRadius);
+    //auto photons = m_photonMapper->GetClosestPhotons(hitPoint, photonRangeRadius);
+    auto photons = m_photonMapper->GetClosestPhotons(hitPoint, 100, photonRangeRadius);
     for (auto p : photons)
     {
         glm::vec3 photonPos(p.point[0], p.point[1], p.point[2]);
@@ -255,9 +256,10 @@ glm::vec3 RenderManager::CalculateCausticColour(glm::vec3 hitPoint, glm::vec3 su
     }
 
     {
-        causticsColour.r = (causticsColour.r * 3 * kValue) / (glm::pi<float>() * glm::pow(photonRangeRadius, 2.0f));
-        causticsColour.g = (causticsColour.g * 3 * kValue) / (glm::pi<float>() * glm::pow(photonRangeRadius, 2.0f));
-        causticsColour.b = (causticsColour.b * 3 * kValue) / (glm::pi<float>() * glm::pow(photonRangeRadius, 2.0f));
+        // causticsColour.r = (causticsColour.r * 3 * kValue) / (glm::pi<float>() * glm::pow(photonRangeRadius, 2.0f));
+        // causticsColour.g = (causticsColour.g * 3 * kValue) / (glm::pi<float>() * glm::pow(photonRangeRadius, 2.0f));
+        // causticsColour.b = (causticsColour.b * 3 * kValue) / (glm::pi<float>() * glm::pow(photonRangeRadius, 2.0f));
+        causticsColour = causticsColour / ((1.0f - (2.0f / (3 * kValue))) * glm::pi<float>() * glm::pow(photonRangeRadius, 2.0f));
     }
 
     return causticsColour;

@@ -6,6 +6,7 @@
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/random.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 PhotonMapper::PhotonMapper(std::vector<MeshGeometry*>* meshObjects, bool caustics, int photonNumber, int maxBounces) :
     m_photonTree(nullptr), m_photons(std::vector<Photon>()), m_meshObjects(meshObjects), m_caustics(caustics), m_photonNumber(photonNumber), m_maxBounces(maxBounces) {}
@@ -49,7 +50,7 @@ void PhotonMapper::GeneratePhotons(PointLight light, RTCScene scene)
 
 }
 
-Kdtree::KdNodeVector PhotonMapper::GetClosestPhotons(glm::vec3 hitPoint, float maxDistance)
+Kdtree::KdNodeVector PhotonMapper::GetClosestPhotons(glm::vec3 hitPoint, float maxDistance, int &numberPhotons)
 {
     Kdtree::KdNodeVector resultPhotons;
     std::vector<double> point(3);
@@ -60,6 +61,29 @@ Kdtree::KdNodeVector PhotonMapper::GetClosestPhotons(glm::vec3 hitPoint, float m
     }
     m_photonTree->range_nearest_neighbors(point, maxDistance, &resultPhotons);
 
+    numberPhotons = resultPhotons.size();
+    return resultPhotons;
+}
+
+Kdtree::KdNodeVector PhotonMapper::GetClosestPhotons(glm::vec3 hitPoint, int maxNumber, float &photonDistance)
+{
+    Kdtree::KdNodeVector resultPhotons;
+    std::vector<double> point(3);
+    {
+        point[0] = hitPoint.x;
+        point[1] = hitPoint.y;
+        point[2] = hitPoint.z;
+    }
+    m_photonTree->k_nearest_neighbors(point, maxNumber, &resultPhotons);
+
+    auto furthestPhoton = resultPhotons.at(resultPhotons.size() - 1);
+    glm::vec3 furthestPoint;
+    {
+        furthestPoint.x = furthestPhoton.point[0];
+        furthestPoint.y = furthestPhoton.point[1];
+        furthestPoint.z = furthestPhoton.point[2];
+    }
+    photonDistance = glm::distance(hitPoint, furthestPoint);
     return resultPhotons;
 }
 

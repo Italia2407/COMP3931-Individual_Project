@@ -40,7 +40,8 @@ public:
     //const std::vector<Photon>& photons() { return m_photons; };
 
     void GeneratePhotons(PointLight light, RTCScene scene);
-    Kdtree::KdNodeVector GetClosestPhotons(glm::vec3 hitPoint, float maxDistance);
+    Kdtree::KdNodeVector GetClosestPhotons(glm::vec3 hitPoint, float maxDistance, int &numberPhotons);
+    Kdtree::KdNodeVector GetClosestPhotons(glm::vec3 hitPoint, int maxNumber, float &photonDistance);
 
 private:
     bool CastPhotonRay(glm::vec3 photonColour, glm::vec3 photonOrigin, glm::vec3 photonDirection, RTCScene scene, RTCIntersectContext& context, int rayDepth);

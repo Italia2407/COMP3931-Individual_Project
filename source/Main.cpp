@@ -49,14 +49,21 @@ int main()
 
         rodMaterial.roughness = 0.3f;
     }
+    MaterialProperties rodMaterial2 = MaterialProperties();
+    {
+        rodMaterial2.albedoColour = glm::vec3(0.4f, 0.5f, 1.0f);
+
+        rodMaterial2.roughness = 0.3f;
+    }
 
     MeshGeometry* mainWalls = new MeshGeometry(mainWallsMat); mainWalls->LoadFromOBJ("../assets/Walls_Main.obj");
     MeshGeometry* leftWall = new MeshGeometry(leftWallMat); leftWall->LoadFromOBJ("../assets/Walls_Left.obj");
     MeshGeometry* rightWall = new MeshGeometry(rightWallMat); rightWall->LoadFromOBJ("../assets/Walls_Right.obj");
 
-    MeshGeometry* lens = new MeshGeometry(lensMaterial); lens->LoadFromOBJ("../assets/Lens.obj");
+    MeshGeometry* lens = new MeshGeometry(lensMaterial); lens->LoadFromOBJ("../assets/Sphere.obj");
 
     MeshGeometry* rod = new MeshGeometry(rodMaterial); rod->LoadFromOBJ("../assets/Rod.obj");
+    MeshGeometry* rod2 = new MeshGeometry(rodMaterial2); rod2->LoadFromOBJ("../assets/Rod.obj");
 
     renderer.AttachMeshGeometry(mainWalls, glm::vec3(0.0f, 0.0f, 0.0f));
     renderer.AttachMeshGeometry(leftWall, glm::vec3(0.0f, 0.0f, 0.0f));
@@ -65,6 +72,7 @@ int main()
     renderer.AttachMeshGeometry(lens, glm::vec3(0.0f, 0.0f, -2.0f));
 
     renderer.AttachMeshGeometry(rod, glm::vec3(0.0f, -2.0f, -2.5f));
+    renderer.AttachMeshGeometry(rod2, glm::vec3(0.0f, 0.0f, -3.5f));
 
     renderer.AddLight(glm::vec3(0.0f, 3.5f, -2.0f), glm::vec3(1.0f, 1.0f, 1.0f), 600.0f);
     renderer.RenderScene("MainScene.ppm", 720, 720);
