@@ -11,7 +11,7 @@
 PhotonMapper::PhotonMapper(std::vector<MeshGeometry*>* meshObjects, bool caustics, int photonNumber, int maxBounces) :
     m_photonTree(nullptr), m_photons(std::vector<Photon>()), m_meshObjects(meshObjects), m_caustics(caustics), m_photonNumber(photonNumber), m_maxBounces(maxBounces) {}
 
-void PhotonMapper::GeneratePhotons(PointLight light, RTCScene scene)
+int PhotonMapper::GeneratePhotons(PointLight light, RTCScene scene)
 {
     int p = 0;
     while (p < m_photonNumber)
@@ -21,7 +21,7 @@ void PhotonMapper::GeneratePhotons(PointLight light, RTCScene scene)
         RTCIntersectContext context;
         rtcInitIntersectContext(&context);
 
-        bool result = CastPhotonRay((light.colour * light.intensity) * (1.0f / m_photonNumber), light.position, emissionDirection, scene, context, 0);
+        bool result = CastPhotonRay((light.colour * light.intensity), light.position, emissionDirection, scene, context, 0);
         if (result || !m_caustics)
             p++;
         else
@@ -44,10 +44,16 @@ void PhotonMapper::GeneratePhotons(PointLight light, RTCScene scene)
         }
         treeNodes.push_back(photonNode);
     }
-    std::cout << m_photons.size() << std::endl;
 
     m_photonTree = new Kdtree::KdTree(&treeNodes);
+    return m_photons.size();
+}
 
+void PhotonMapper::ClearPhotons()
+{
+    m_photons.clear();
+    m_photonTree->allnodes.clear();
+    delete m_photonTree;
 }
 
 Kdtree::KdNodeVector PhotonMapper::GetClosestPhotons(glm::vec3 hitPoint, float maxDistance, int &numberPhotons)

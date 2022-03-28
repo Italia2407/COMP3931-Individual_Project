@@ -39,7 +39,8 @@ public:
     const Kdtree::KdTree& photons() { return *m_photonTree; };
     //const std::vector<Photon>& photons() { return m_photons; };
 
-    void GeneratePhotons(PointLight light, RTCScene scene);
+    int GeneratePhotons(PointLight light, RTCScene scene);
+    void ClearPhotons();
     Kdtree::KdNodeVector GetClosestPhotons(glm::vec3 hitPoint, float maxDistance, int &numberPhotons);
     Kdtree::KdNodeVector GetClosestPhotons(glm::vec3 hitPoint, int maxNumber, float &photonDistance);
 

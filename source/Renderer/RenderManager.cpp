@@ -11,6 +11,9 @@
 #include <glm/gtc/random.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+static const int emittedPhotons = 250000;
+static int photonsEmitted = 0;
+
 Camera::Camera(glm::vec3 position, float fov, float np, float fp) :
         position(position), fieldOfView(fov), nearPlane(np), farPlane(fp) {}
 
@@ -40,7 +43,7 @@ RenderManager::RenderManager(RTCDevice* device, Camera camera, bool smoothShadin
     if (m_device != nullptr)
         m_scene = rtcNewScene(*device);
 
-    m_photonMapper = new PhotonMapper(&m_meshObjects, true, 100000, 8);
+    m_photonMapper = new PhotonMapper(&m_meshObjects, true, emittedPhotons, 8);
 }
 
 void RenderManager::AttachMeshGeometry(MeshGeometry* meshGeometry, glm::vec3 position)
@@ -79,18 +82,10 @@ void RenderManager::AddLight(glm::vec3 position, glm::vec3 colour, float intensi
 void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, u_int32_t imgHeight)
 {
     rtcCommitScene(m_scene);
+    RTCIntersectContext context;
+    rtcInitIntersectContext(&context);
 
-    auto start_p = std::chrono::steady_clock::now();
-    for (PointLight light : m_sceneLights)
-    {
-        m_photonMapper->GeneratePhotons(light, m_scene);
-    }
-    auto end_p = std::chrono::steady_clock::now();
-    auto millisecondDuration_p = std::chrono::duration_cast<std::chrono::milliseconds>(end_p - start_p).count();
-
-    std::cout << "Seconds Elapsed for Photon Mapping: " << millisecondDuration_p << "ms" << std::endl;
-
-    std::vector<glm::vec3> pixels = std::vector<glm::vec3>();
+    std::vector<glm::vec3> pixels = std::vector<glm::vec3>(imgWidth * imgHeight);
 
     auto start_r = std::chrono::steady_clock::now();
     for (int y = 0; y < imgHeight; y++)
@@ -101,27 +96,73 @@ void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, 
             for (int i = 0; i < m_multisamplingIterations; i++)
             {
                 //std::cout << "Pixel (" << x << ", " << y << "): Iteration #" << i << std::endl;
-                RTCIntersectContext context;
-                rtcInitIntersectContext(&context);
 
-                pixelColour += CastRay(m_camera.position, m_camera.getPixelRayDirection(x, y, imgWidth, imgHeight), m_camera.nearPlane, m_camera.farPlane, context, 0);
+                CastRay(m_camera.position, m_camera.getPixelRayDirection(x, y, imgWidth, imgHeight), m_camera.nearPlane, m_camera.farPlane, context, 0, glm::uvec2(x, y));
             }
-            
-            pixelColour.r = pixelColour.r / (float)m_multisamplingIterations;
-            pixelColour.g = pixelColour.g / (float)m_multisamplingIterations;
-            pixelColour.b = pixelColour.b / (float)m_multisamplingIterations;
-            pixels.push_back(pixelColour);
         }
     }
     auto end_r = std::chrono::steady_clock::now();
     auto millisecondDuration_r = std::chrono::duration_cast<std::chrono::milliseconds>(end_r - start_r).count();
+    std::cout << "Seconds Elapsed for Ray Mapping: " << millisecondDuration_r << "ms" << std::endl;
 
-    std::cout << "Seconds Elapsed for Rendering: " << millisecondDuration_r << "ms" << std::endl;
+    for (int i = 0; i < 16; i++)
+    {
+        auto start_p = std::chrono::steady_clock::now();
 
-    WriteToPPM(outputFileName, imgWidth, imgHeight, pixels);
+        for (PointLight light : m_sceneLights)
+        {
+            photonsEmitted += m_photonMapper->GeneratePhotons(light, m_scene);
+        }
+        auto end_p = std::chrono::steady_clock::now();
+        auto millisecondDuration_p = std::chrono::duration_cast<std::chrono::milliseconds>(end_p - start_p).count();
+        std::cout << "Seconds Elapsed for Photon Mapping Stage #" << i << ": " << millisecondDuration_p << "ms" << std::endl;
+
+        auto start_i = std::chrono::steady_clock::now();
+
+        for (RayHitPoint* r : m_hitPoints)
+        {
+            int oldPhotonCount = r->photonCount;
+            float oldPhotonRadius = r->photonRadius;
+
+            // TODO Add photon flux to hitpoints
+            CalculateCausticColour(r, context, i);
+
+            int addedPhotons = r->photonCount - oldPhotonCount;
+            int keptPhotons = oldPhotonCount + glm::round(addedPhotons * m_alphaReduction);
+
+            // Reduce Radius
+            float newRadius = r->photonRadius * glm::sqrt((float)keptPhotons / r->photonCount);
+            r->photonRadius = newRadius;
+
+            // Flux Correction
+            glm::vec3 newFlux = r->accumulatedFlux * ((float)keptPhotons / r->photonCount);
+            r->accumulatedFlux = newFlux;
+
+            r->photonCount = keptPhotons;
+        }
+        m_photonMapper->ClearPhotons();
+
+        // TODO Add Hitpoints to Pixels
+        for (RayHitPoint* r : m_hitPoints)
+        {
+            glm::vec3 finalColour = r->accumulatedFlux / ((glm::pi<float>() * glm::pow(r->photonRadius, 2.0f)) * photonsEmitted);
+            finalColour /= m_multisamplingIterations; // Each point contributes to a fraction depending on multisampling iterations
+
+            pixels[r->imageLocation.x + (r->imageLocation.y * imgWidth)] += finalColour;
+            // std::cout << "Pixel: " << r->accumulatedFlux.r << std::endl;
+            // std::cout << "Radius: " << r->photonRadius << std::endl;
+        }
+
+        auto end_i = std::chrono::steady_clock::now();
+        auto millisecondDuration_i = std::chrono::duration_cast<std::chrono::milliseconds>(end_i - start_i).count();
+        std::cout << "Seconds Elapsed for Rendering Stage #" << i << ": " << millisecondDuration_i << "ms" << std::endl;
+
+        std::string outputName(outputFileName);
+        WriteToPPM(outputName.append(std::to_string(i)), imgWidth, imgHeight, pixels);
+    }
 }
 
-glm::vec3 RenderManager::CastRay(glm::vec3 origin, glm::vec3 direction, float near, float far, RTCIntersectContext& context, u_int16_t rayDepth)
+glm::vec3 RenderManager::CastRay(glm::vec3 origin, glm::vec3 direction, float near, float far, RTCIntersectContext& context, u_int16_t rayDepth, glm::uvec2 imageLocation)
 {
     RTCRayHit rayhit;
     {
@@ -186,8 +227,8 @@ glm::vec3 RenderManager::CastRay(glm::vec3 origin, glm::vec3 direction, float ne
             glm::vec3 diffuseColour(0.0f, 0.0f, 0.0f);
             for (int i = 0; i < m_sceneLights.size(); i++)
             {
-                //diffuseColour += CalculateDiffuseColour(hitPoint, surfaceNormal, reflectionDirection, m_sceneLights[i], surfaceProperties, context);
-                diffuseColour += CalculateCausticColour(hitPoint, surfaceNormal, reflectionDirection, m_sceneLights[i], surfaceProperties, context);
+                diffuseColour += CalculateDiffuseColour(hitPoint, surfaceNormal, reflectionDirection, m_sceneLights[i], surfaceProperties, context);
+                //diffuseColour += CalculateCausticColour(hitPoint, surfaceNormal, reflectionDirection, m_sceneLights[i], surfaceProperties, context);
             }
 
             // glm::vec3 ambientColour(0.0f, 0.0f, 0.0f);
@@ -197,6 +238,21 @@ glm::vec3 RenderManager::CastRay(glm::vec3 origin, glm::vec3 direction, float ne
             //     ambientColour *= surfaceProperties.lightReflection;
             // }
             // diffuseColour += ambientColour;
+
+            RayHitPoint* rayHitPoint = new RayHitPoint();
+            {
+                rayHitPoint->position = hitPoint;
+                rayHitPoint->imageLocation = imageLocation;
+
+                rayHitPoint->surfaceNormal = surfaceNormal;
+                rayHitPoint->incidentDirection = incidentDirection;
+                rayHitPoint->surfaceProperties = surfaceProperties;
+
+                rayHitPoint->photonCount = 0;
+                rayHitPoint->photonRadius = 0.1f;
+                rayHitPoint->accumulatedFlux = glm::vec3(0.0f, 0.0f, 0.0f);
+            }
+            m_hitPoints.push_back(rayHitPoint);
 
             return diffuseColour;
         }
@@ -208,11 +264,11 @@ glm::vec3 RenderManager::CastRay(glm::vec3 origin, glm::vec3 direction, float ne
                 float randChoice = glm::linearRand(0.0f, 1.0f);
                 if (randChoice > surfaceProperties.translucency || surfaceProperties.translucency == 0.0f)
                 {
-                    glassyColour = CalculateReflectionColour(hitPoint, reflectionDirection, surfaceProperties, context, rayDepth + 1);
+                    glassyColour = CalculateReflectionColour(hitPoint, reflectionDirection, surfaceProperties, context, rayDepth + 1, imageLocation);
                 }
                 else
                 {
-                    glassyColour = CalculateRefractionColour(hitPoint, surfaceNormal, incidentDirection, surfaceProperties, context, rayDepth);
+                    glassyColour = CalculateRefractionColour(hitPoint, surfaceNormal, incidentDirection, surfaceProperties, context, rayDepth, imageLocation);
                 }
             }
 
@@ -223,43 +279,53 @@ glm::vec3 RenderManager::CastRay(glm::vec3 origin, glm::vec3 direction, float ne
     return glm::vec3(0.0f, 0.0f, 0.0f);
 }
 
-glm::vec3 RenderManager::CalculateCausticColour(glm::vec3 hitPoint, glm::vec3 surfaceNormal, glm::vec3 reflectionDirection, PointLight light, MaterialProperties surfaceProperties, RTCIntersectContext& context)
+glm::vec3 RenderManager::CalculateCausticColour(RayHitPoint* rayHitPoint, RTCIntersectContext& context, int iterationNum)
 {
-    float photonRangeRadius = 0.05f;
-    float kValue = 0.8f;
+    float kValue = 1.0f;
 
     glm::vec3 causticsColour(0.0f, 0.0f, 0.0f);
-    //auto photons = m_photonMapper->GetClosestPhotons(hitPoint, photonRangeRadius);
-    auto photons = m_photonMapper->GetClosestPhotons(hitPoint, 100, photonRangeRadius);
+    int photonNum;
+    //auto photons = m_photonMapper->GetClosestPhotons(rayHitPoint->position, rayHitPoint->photonRadius, rayHitPoint->photonCount);
+    Kdtree::KdNodeVector photons;
+    if (iterationNum == 0)
+        photons = m_photonMapper->GetClosestPhotons(rayHitPoint->position, 20, rayHitPoint->photonRadius);
+    else
+    {
+        int voidCOunt;
+        photons = m_photonMapper->GetClosestPhotons(rayHitPoint->position, rayHitPoint->photonRadius, voidCOunt);
+    }
+
     for (auto p : photons)
     {
         glm::vec3 photonPos(p.point[0], p.point[1], p.point[2]);
-        float distance = glm::distance(photonPos, hitPoint);
+        float distance = glm::distance(photonPos, rayHitPoint->position);
         PhotonData* data = (PhotonData*)p.data;
         
-        float facingRatio = glm::dot(glm::normalize(data->direction), glm::normalize(surfaceNormal));
+        float facingRatio = glm::dot(glm::normalize(data->direction), glm::normalize(rayHitPoint->surfaceNormal));
         if (facingRatio <= 0.0f)
             continue;
 
-        float photonWeight = 1 - (distance / (kValue * photonRangeRadius));
+        float photonWeight = 1 - (distance / (kValue * rayHitPoint->photonRadius));
         if (photonWeight < 0.0f)
             photonWeight = 0.0f;
 
         glm::vec3 pointColour(0.0f, 0.0f, 0.0f);
         {
-            pointColour.r = (surfaceProperties.albedoColour.r * facingRatio * data->colour.r) / glm::pi<float>();
-            pointColour.g = (surfaceProperties.albedoColour.g * facingRatio * data->colour.g) / glm::pi<float>();
-            pointColour.b = (surfaceProperties.albedoColour.b * facingRatio * data->colour.b) / glm::pi<float>();
+            pointColour.r = (rayHitPoint->surfaceProperties.albedoColour.r * facingRatio * data->colour.r) / glm::pi<float>();
+            pointColour.g = (rayHitPoint->surfaceProperties.albedoColour.g * facingRatio * data->colour.g) / glm::pi<float>();
+            pointColour.b = (rayHitPoint->surfaceProperties.albedoColour.b * facingRatio * data->colour.b) / glm::pi<float>();
         }
 
         causticsColour += pointColour * photonWeight;
+        rayHitPoint->accumulatedFlux += pointColour;
+        rayHitPoint->photonCount++;
     }
 
     {
         // causticsColour.r = (causticsColour.r * 3 * kValue) / (glm::pi<float>() * glm::pow(photonRangeRadius, 2.0f));
         // causticsColour.g = (causticsColour.g * 3 * kValue) / (glm::pi<float>() * glm::pow(photonRangeRadius, 2.0f));
         // causticsColour.b = (causticsColour.b * 3 * kValue) / (glm::pi<float>() * glm::pow(photonRangeRadius, 2.0f));
-        causticsColour = causticsColour / ((1.0f - (2.0f / (3 * kValue))) * glm::pi<float>() * glm::pow(photonRangeRadius, 2.0f));
+        //causticsColour = causticsColour / ((1.0f - (2.0f / (3 * kValue))) * glm::pi<float>() * glm::pow(photonRangeRadius, 2.0f));
     }
 
     return causticsColour;
@@ -308,9 +374,9 @@ glm::vec3 RenderManager::CalculateDiffuseColour(glm::vec3 hitPoint, glm::vec3 su
     return glm::vec3(0.0f, 0.0f, 0.0f);
 }
 
-glm::vec3 RenderManager::CalculateReflectionColour(glm::vec3 hitPoint, glm::vec3 reflectionDirection, MaterialProperties surfaceProperties, RTCIntersectContext& context, u_int32_t rayDepth)
+glm::vec3 RenderManager::CalculateReflectionColour(glm::vec3 hitPoint, glm::vec3 reflectionDirection, MaterialProperties surfaceProperties, RTCIntersectContext& context, u_int32_t rayDepth, glm::uvec2 imageLocation)
 {
-    glm::vec3 reflectionColour = CastRay(hitPoint, reflectionDirection, 0.01f, std::numeric_limits<float>().infinity(), context, rayDepth);
+    glm::vec3 reflectionColour = CastRay(hitPoint, reflectionDirection, 0.01f, std::numeric_limits<float>().infinity(), context, rayDepth, imageLocation);
     {
         reflectionColour.r *= surfaceProperties.albedoColour.r;
         reflectionColour.g *= surfaceProperties.albedoColour.g;
@@ -320,7 +386,7 @@ glm::vec3 RenderManager::CalculateReflectionColour(glm::vec3 hitPoint, glm::vec3
     return reflectionColour;
 }
 
-glm::vec3 RenderManager::CalculateRefractionColour(glm::vec3 hitPoint, glm::vec3 surfaceNormal, glm::vec3 incidenceDirection, MaterialProperties surfaceProperties, RTCIntersectContext& context, u_int32_t rayDepth)
+glm::vec3 RenderManager::CalculateRefractionColour(glm::vec3 hitPoint, glm::vec3 surfaceNormal, glm::vec3 incidenceDirection, MaterialProperties surfaceProperties, RTCIntersectContext& context, u_int32_t rayDepth, glm::uvec2 imageLocation)
 {
     float incidenceAngle = glm::acos(glm::dot(glm::normalize(surfaceNormal), glm::normalize(-incidenceDirection)));
     float refractionAngle = glm::asin(glm::sin(incidenceAngle) / surfaceProperties.refractiveIndex);
@@ -371,7 +437,7 @@ glm::vec3 RenderManager::CalculateRefractionColour(glm::vec3 hitPoint, glm::vec3
             glm::vec3 exitPerpendicular = glm::cross(glm::normalize(exitNormal), glm::normalize(refractionDirection));
             glm::vec3 exitDirection = glm::normalize(exitNormal) * glm::angleAxis(glm::asin(-exitAngleSin), glm::normalize(exitPerpendicular)); // Why the Refraction Angle has to be Negated is Unclear
 
-            refractionColour = CastRay(newHitPoint, exitDirection, 0.01f, std::numeric_limits<float>().infinity(), context, rayDepth + internalReflections);
+            refractionColour = CastRay(newHitPoint, exitDirection, 0.01f, std::numeric_limits<float>().infinity(), context, rayDepth + internalReflections, imageLocation);
             break;
         }
         else if (internalReflections + rayDepth < m_maxRayDepth)
