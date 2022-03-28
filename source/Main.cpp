@@ -75,5 +75,5 @@ int main()
     renderer.AttachMeshGeometry(rod2, glm::vec3(0.0f, 0.0f, -3.5f));
 
     renderer.AddLight(glm::vec3(0.0f, 3.5f, -2.0f), glm::vec3(1.0f, 1.0f, 1.0f), 600.0f);
-    renderer.RenderScene("MainScene.ppm", 720, 720);
+    renderer.RenderScene("MainScene", 720, 720);
 }

@@ -64,7 +64,7 @@ private:
 
     std::vector<RayHitPoint*> m_hitPoints;
 
-    float m_alphaReduction = 0.5f;
+    float m_alphaReduction = 0.75f;
 
 public:
     void AttachMeshGeometry(MeshGeometry* meshGeometry, glm::vec3 position);

@@ -105,7 +105,7 @@ void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, 
     auto millisecondDuration_r = std::chrono::duration_cast<std::chrono::milliseconds>(end_r - start_r).count();
     std::cout << "Seconds Elapsed for Ray Mapping: " << millisecondDuration_r << "ms" << std::endl;
 
-    for (int i = 0; i < 16; i++)
+    for (int i = 0; i < 64; i++)
     {
         auto start_p = std::chrono::steady_clock::now();
 
@@ -132,6 +132,7 @@ void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, 
 
             // Reduce Radius
             float newRadius = r->photonRadius * glm::sqrt((float)keptPhotons / r->photonCount);
+            //float newRadius = oldPhotonRadius * glm::sqrt((float)keptPhotons / r->photonCount);
             r->photonRadius = newRadius;
 
             // Flux Correction
@@ -158,7 +159,7 @@ void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, 
         std::cout << "Seconds Elapsed for Rendering Stage #" << i << ": " << millisecondDuration_i << "ms" << std::endl;
 
         std::string outputName(outputFileName);
-        WriteToPPM(outputName.append(std::to_string(i)), imgWidth, imgHeight, pixels);
+        WriteToPPM(outputName.append(std::to_string(i)).append(".ppm"), imgWidth, imgHeight, pixels);
     }
 }
 
@@ -317,7 +318,7 @@ glm::vec3 RenderManager::CalculateCausticColour(RayHitPoint* rayHitPoint, RTCInt
         }
 
         causticsColour += pointColour * photonWeight;
-        rayHitPoint->accumulatedFlux += pointColour;
+        rayHitPoint->accumulatedFlux += pointColour * photonWeight;
         rayHitPoint->photonCount++;
     }
 
