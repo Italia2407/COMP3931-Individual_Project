@@ -11,7 +11,7 @@
 #include <glm/gtc/random.hpp>
 #include <glm/gtc/quaternion.hpp>
 
-static const int emittedPhotons = 250000;
+static const int emittedPhotons = 2500000;
 static int photonsEmitted = 0;
 
 Camera::Camera(glm::vec3 position, float fov, float np, float fp) :
@@ -85,7 +85,7 @@ void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, 
     RTCIntersectContext context;
     rtcInitIntersectContext(&context);
 
-    std::vector<glm::vec3> pixels = std::vector<glm::vec3>(imgWidth * imgHeight);
+    std::vector<glm::vec3> pixels;
 
     auto start_r = std::chrono::steady_clock::now();
     for (int y = 0; y < imgHeight; y++)
@@ -105,8 +105,9 @@ void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, 
     auto millisecondDuration_r = std::chrono::duration_cast<std::chrono::milliseconds>(end_r - start_r).count();
     std::cout << "Seconds Elapsed for Ray Mapping: " << millisecondDuration_r << "ms" << std::endl;
 
-    for (int i = 0; i < 64; i++)
+    for (int i = 0; i < 32; i++)
     {
+        pixels = std::vector<glm::vec3>(imgWidth * imgHeight);
         auto start_p = std::chrono::steady_clock::now();
 
         for (PointLight light : m_sceneLights)
@@ -146,7 +147,7 @@ void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, 
         // TODO Add Hitpoints to Pixels
         for (RayHitPoint* r : m_hitPoints)
         {
-            glm::vec3 finalColour = r->accumulatedFlux / ((glm::pi<float>() * glm::pow(r->photonRadius, 2.0f)) * photonsEmitted);
+            glm::vec3 finalColour = r->accumulatedFlux / ((glm::pi<float>() * glm::pow(r->photonRadius, 2.0f)) * emittedPhotons * (1+i));
             finalColour /= m_multisamplingIterations; // Each point contributes to a fraction depending on multisampling iterations
 
             pixels[r->imageLocation.x + (r->imageLocation.y * imgWidth)] += finalColour;
@@ -160,6 +161,7 @@ void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, 
 
         std::string outputName(outputFileName);
         WriteToPPM(outputName.append(std::to_string(i)).append(".ppm"), imgWidth, imgHeight, pixels);
+        pixels.clear();
     }
 }
 
