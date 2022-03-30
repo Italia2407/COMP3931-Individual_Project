@@ -22,6 +22,7 @@ add_executable(HelloEmbree source/HelloEmbree.cpp)
 add_executable(AsciiTriangles source/AsciiTriangles.cpp ${HEADERS} ${SOURCES} ${KDTREE})
 add_executable(MugScene source/MugScene.cpp ${HEADERS} ${SOURCES} ${KDTREE})
 add_executable(MainScene source/Main.cpp ${HEADERS} ${SOURCES} ${KDTREE})
+add_executable(FinalScene source/Main.cpp ${HEADERS} ${SOURCES} ${KDTREE})
 
 target_link_libraries(HelloEmbree ${LIBS})
 target_include_directories(HelloEmbree PUBLIC ${INCLUDES})
@@ -34,3 +35,6 @@ target_include_directories(MugScene PUBLIC ${INCLUDES})
 
 target_link_libraries(MainScene ${LIBS})
 target_include_directories(MainScene PUBLIC ${INCLUDES})
+
+target_link_libraries(FinalScene ${LIBS})
+target_include_directories(FinalScene PUBLIC ${INCLUDES})

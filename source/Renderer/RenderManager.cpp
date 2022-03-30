@@ -11,7 +11,7 @@
 #include <glm/gtc/random.hpp>
 #include <glm/gtc/quaternion.hpp>
 
-static const int emittedPhotons = 2500000;
+static const int emittedPhotons = 200000;
 static int photonsEmitted = 0;
 
 Camera::Camera(glm::vec3 position, float fov, float np, float fp) :
@@ -105,7 +105,7 @@ void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, 
     auto millisecondDuration_r = std::chrono::duration_cast<std::chrono::milliseconds>(end_r - start_r).count();
     std::cout << "Seconds Elapsed for Ray Mapping: " << millisecondDuration_r << "ms" << std::endl;
 
-    for (int i = 0; i < 32; i++)
+    for (int i = 0; i < 16; i++)
     {
         pixels = std::vector<glm::vec3>(imgWidth * imgHeight);
         auto start_p = std::chrono::steady_clock::now();
