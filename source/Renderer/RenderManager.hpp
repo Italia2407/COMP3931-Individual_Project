@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 #include "../IOManagers/MeshGeometry.hpp"
 #include "PointLight.hpp"
@@ -13,9 +14,10 @@
 struct Camera
 {
 public:
-    Camera(glm::vec3 position, float fov, float np, float fp);
+    Camera(glm::vec3 position, glm::quat rotation, float fov, float np, float fp);
 
     glm::vec3 position;
+    glm::quat rotation;
 
     float fieldOfView;
 

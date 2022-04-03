@@ -14,8 +14,8 @@
 static int emittedPhotons = 0;
 static int photonsEmitted = 0;
 
-Camera::Camera(glm::vec3 position, float fov, float np, float fp) :
-        position(position), fieldOfView(fov), nearPlane(np), farPlane(fp) {}
+Camera::Camera(glm::vec3 position, glm::quat rotation, float fov, float np, float fp) :
+        position(position), rotation(rotation), fieldOfView(fov), nearPlane(np), farPlane(fp) {}
 
 glm::vec3 Camera::getPixelRayDirection(int x, int y, u_int16_t imgWidth, u_int16_t imgHeight)
 {
@@ -31,6 +31,7 @@ glm::vec3 Camera::getPixelRayDirection(int x, int y, u_int16_t imgWidth, u_int16
     float ycamera = yscreen * glm::tan(glm::radians(fieldOfView));
 
     glm::vec3 rayDirection = glm::vec3(xcamera, ycamera, -1.0f);
+    rayDirection = rayDirection * rotation;
     return glm::normalize(rayDirection);
 }
 

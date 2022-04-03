@@ -6,13 +6,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <glm/gtc/quaternion.hpp>
 
 int main()
 {
     srand(time(NULL)); // Initialise RNG
 
     RTCDevice device = rtcNewDevice(NULL);
-    RenderManager renderer(&device, Camera(glm::vec3(0.0f, 0.0f, 3.0f), 45.0f, 0.01f, 1000.0f), false, 5, 4, 200000);
+    RenderManager renderer(&device, Camera(glm::vec3(0.0f, 0.0f, 3.0f), glm::angleAxis(glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f)), 45.0f, 0.01f, 1000.0f), false, 5, 4, 200000);
 
     // All Scene Materials
     MaterialProperties leftWallMat;
@@ -40,7 +41,6 @@ int main()
 
     renderer.AddLight(glm::vec3(), glm::vec3(1.0f, 1.0f, 1.0f), 8000.0f);
 
-    //renderer.RenderScene("FinalScene", 720, 720, PhotonMappingMode::PM_PROGRES, 1);
-    renderer.RenderScene("FinalScene", 720, 720, PhotonMappingMode::PM_TWOPASS, 1);
+    renderer.RenderScene("FinalScene", 720, 720, PhotonMappingMode::PM_PROGRES, 8);
     return 0;
 }
