@@ -20,6 +20,12 @@ struct Photon
     PhotonData data;
 };
 
+enum PhotonMappingMode
+{
+    PM_TWOPASS,
+    PM_PROGRES
+};
+
 class PhotonMapper
 {
 public:

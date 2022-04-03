@@ -16,7 +16,7 @@ int PhotonMapper::GeneratePhotons(PointLight light, RTCScene scene)
     int p = 0;
     while (p < m_photonNumber)
     {
-        glm::vec3 emissionDirection = glm::normalize(glm::sphericalRand(1.0f));
+        glm::vec3 emissionDirection = glm::normalize(glm::sphericalRand(0.2f));
 
         RTCIntersectContext context;
         rtcInitIntersectContext(&context);
