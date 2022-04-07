@@ -25,14 +25,22 @@ glm::vec3 Camera::getPixelRayDirection(int x, int y, u_int16_t imgWidth, u_int16
     float xscreen = (xndc * 2) - 1;
     float yscreen = 1 - (yndc * 2);
 
-
     float aspectRatio = (float)imgWidth / imgHeight;
     float xcamera = xscreen * aspectRatio * glm::tan(glm::radians(fieldOfView));
     float ycamera = yscreen * glm::tan(glm::radians(fieldOfView));
 
-    glm::vec3 rayDirection = glm::vec3(xcamera, ycamera, -1.0f);
-    rayDirection = rayDirection * rotation;
-    return glm::normalize(rayDirection);
+    glm::vec3 forward = glm::vec3(0.0f, 0.0f, -1.0f) * rotation;
+    glm::vec3 upward = glm::vec3(0.0f, 1.0f, 0.0f) * rotation;
+
+    glm::mat4 camtoworld = glm::lookAt(position, forward, upward);
+    glm::vec3 rayTarget = glm::vec3(xcamera, ycamera, -1.0f);
+
+    glm::vec3 rayOriginWorld, rayTargetWorld;
+    rayOriginWorld = glm::vec4(position, 0.0f) * camtoworld;
+    rayTargetWorld = glm::vec4(rayTarget, 0.0f) * camtoworld;
+
+    //return glm::normalize(glm::normalize(rayTargetWorld - rayOriginWorld));
+    return rayTargetWorld;
 }
 
 RenderManager::RenderManager(RTCDevice* device, Camera camera, bool smoothShading, u_int32_t multisamplingIterations, u_int16_t maxRayDepth, int photonNumPerLight) :
@@ -160,14 +168,17 @@ void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, 
                 int addedPhotons = r->photonCount - oldPhotonCount;
                 int keptPhotons = oldPhotonCount + glm::round(addedPhotons * m_alphaReduction);
 
-                // Reduce Radius
-                float newRadius = r->photonRadius * glm::sqrt((float)keptPhotons / r->photonCount);
-                //float newRadius = oldPhotonRadius * glm::sqrt((float)keptPhotons / r->photonCount);
-                r->photonRadius = newRadius;
+                if (r->photonCount != 0)
+                {
+                    // Reduce Radius
+                    float newRadius = r->photonRadius * glm::sqrt((float)keptPhotons / r->photonCount);
+                    //float newRadius = oldPhotonRadius * glm::sqrt((float)keptPhotons / r->photonCount);
+                    r->photonRadius = newRadius;
 
-                // Flux Correction
-                glm::vec3 newFlux = r->accumulatedFlux * ((float)keptPhotons / r->photonCount);
-                r->accumulatedFlux = newFlux;
+                    // Flux Correction
+                    glm::vec3 newFlux = r->accumulatedFlux * ((float)keptPhotons / r->photonCount);
+                    r->accumulatedFlux = newFlux;
+                }
 
                 r->photonCount = keptPhotons;
             }
@@ -180,8 +191,10 @@ void RenderManager::RenderScene(std::string outputFileName, u_int32_t imgWidth, 
                 finalColour /= m_multisamplingIterations; // Each point contributes to a fraction depending on multisampling iterations
 
                 pixels[r->imageLocation.x + (r->imageLocation.y * imgWidth)] += finalColour;
-                // std::cout << "Pixel: " << r->accumulatedFlux.r << std::endl;
-                // std::cout << "Radius: " << r->photonRadius << std::endl;
+                if (std::isnan(finalColour.r))
+                {
+                    std::cout << "XCoord: " << r->imageLocation.x << ", YCoord: " << r->imageLocation.y << std::endl;
+                }
             }
         }
 
